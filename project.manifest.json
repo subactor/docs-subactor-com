@@ -10,6 +10,7 @@
     "dns_management_plane": "plesk",
     "dns_sync_extension": "cloudflaredns",
     "origin_ip": "217.160.250.222",
+    "plesk_site_id": 185,
     "source": "site",
     "entrypoint": "index.html",
     "publication": {
