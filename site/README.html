@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>docs.subactor.com — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="./index.html">subactor/docs</a></nav>
+<h1>docs.subactor.com</h1>
+<p>!<a href="img.png">img.png</a></p>
+<p>Publiczna dokumentacja Subactor.</p>
+<h2>Stan live (2026-07-21)</h2>
+<p>Aktualny przegląd wykonanych prac, dowodów produkcyjnych, otwartych ticketów i planu refaktoryzacji: <a href="operations/operational-review-2026-07-21.html">operations/operational-review-2026-07-21.md</a>.</p>
+<p>Historyczny raport Plesk i autonomii: <a href="architecture/plesk-publish-status-report-2026-07-19.html">architecture/plesk-publish-status-report-2026-07-19.md</a>. Szczegółowy rejestr zależności, których platforma nie może utworzyć samodzielnie: <a href="architecture/unresolved-live-autonomy-blockers-2026-07-19.html">architecture/unresolved-live-autonomy-blockers-2026-07-19.md</a>. Plan usunięcia blokad i uruchomienia pierwszego kontrolowanego pilota: <a href="plans/full-platform-remediation-plan-2026-07-19.html">plans/full-platform-remediation-plan-2026-07-19.md</a>. Dry-run <code>projekty/02_landing</code> działa, ale produkcyjne utworzenie domeny blokują nieznany limit subskrypcji oraz brak DNS/TLS. Prywatny chat per-user i lokalny agent autonomii działają; realny e-mail i telefon nie są jeszcze gotowe live.</p>
+<h2>Autonomy (CLI → connectors)</h2>
+<table>
+<thead><tr><th>Dokument</th><th>Opis</th></tr></thead>
+<tbody>
+<tr><td><a href="architecture/autonomy-recommended-solution.html">architecture/autonomy-recommended-solution.md</a></td><td><strong>Rekomendacja kanoniczna:</strong> kontrolowany katalog zdolności, strumienie A/B, fazy, werdykt 4 fundamentów</td></tr>
+<tr><td><a href="architecture/adr/README.html">architecture/adr/README.md</a></td><td>ADR Phase 0: zakres autonomii, DNS SSOT, HITL, DoD publish, rollback, sekrety</td></tr>
+<tr><td><a href="architecture/autonomy-ops-status-and-open-questions.html">architecture/autonomy-ops-status-and-open-questions.md</a></td><td>Status ops + pytania otwarte (z proponowanymi odpowiedziami); baseline <code>5894906</code></td></tr>
+<tr><td><a href="architecture/intent-orchestration-and-fallbacks.html">architecture/intent-orchestration-and-fallbacks.md</a></td><td>Intent packs, recipe policy, capability fallbacki, rola LLM (generycznie; publish tylko jako przykład)</td></tr>
+<tr><td><a href="architecture/testing-intents-and-deploy-results.html">architecture/testing-intents-and-deploy-results.md</a></td><td>Macierze testów intent/deploy; ownership vs TestQL; luki capability/verify</td></tr>
+<tr><td><a href="architecture/capability-tooling-evaluation.html">architecture/capability-tooling-evaluation.md</a></td><td>Ocena touri/uri2verify/TestQL/dockfra/hypervisor + gate pack⊆doctor</td></tr>
+<tr><td><a href="plans/autonomy-implementation-roadmap.html">plans/autonomy-implementation-roadmap.md</a></td><td>Roadmapa: fazy 0–8 + kolejność jednostek zmian (PR table)</td></tr>
+<tr><td><a href="https://github.com/subactor/eql/blob/main/docs/SUBACTOR_KORU_INTEGRATION.md">EQL ↔ autonomy (external)</a></td><td>Prototyp EQL 0.2: SemanticPatch + hash ladder vs <code>plan_hash</code> / apply grant</td></tr>
+<tr><td><a href="autonomy-cli-runbook.html">autonomy-cli-runbook.md</a></td><td>Runbook: NL z shella (<code>subactor</code> / <code>subactor-run</code>) → AQL/OQL/URI → Plesk sync; current vs target dla docs.subactor.com</td></tr>
+<tr><td><a href="ops/subactor-ask-troubleshooting.html">ops/subactor-ask-troubleshooting.md</a></td><td>Troubleshooting <code>subactor ask</code>: flagi CLI, hr-control, remote_path, origin <code>--resolve</code>, Koru vs HITL</td></tr>
+<tr><td><a href="plans/docs-subactor-com-publish.html">plans/docs-subactor-com-publish.md</a></td><td>Plan implementacji: allowlist <code>docs/</code>, recipe, NL → publish na docs.subactor.com</td></tr>
+<tr><td><a href="plans/intent-capability-fallbacks.html">plans/intent-capability-fallbacks.md</a></td><td>Skrót / pointer do dokumentu architektury intent + fallbacki</td></tr>
+<tr><td><a href="deployment/docs-httpdocs-sync.urirun.json">deployment/docs-httpdocs-sync.urirun.json</a></td><td>Recipe urirun (dry-run → apply)</td></tr>
+</tbody></table>
+<h2>Platforma (Organization OS)</h2>
+<table>
+<thead><tr><th>Dokument</th><th>Opis</th></tr></thead>
+<tbody>
+<tr><td><a href="platform/ORGANIZATION_OS_ARCHITECTURE.html">platform/ORGANIZATION_OS_ARCHITECTURE.md</a></td><td>Warstwy AQL/OQL, Bridge, Control, LLM</td></tr>
+<tr><td><a href="platform/BUSINESS_OPERATING_SYSTEM.html">platform/BUSINESS_OPERATING_SYSTEM.md</a></td><td>Model operacyjny biznesu</td></tr>
+<tr><td><a href="platform/TASK_PROCESS_RUNTIME.html">platform/TASK_PROCESS_RUNTIME.md</a></td><td>Runtime zadań / URI Process</td></tr>
+<tr><td><a href="platform/TESTQL_PROJECT_GATES.html">platform/TESTQL_PROJECT_GATES.md</a></td><td>Bramki TestQL</td></tr>
+<tr><td><a href="platform/CODEBASE_HEALTH.html">platform/CODEBASE_HEALTH.md</a></td><td><strong>Stan kodu, source of truth, plan refaktoru (code2llm)</strong></td></tr>
+</tbody></table>
+<p>Szersza dokumentacja operacyjna: <a href="../platform/docs/"><code>platform/docs/</code></a> w repozytorium platformy (deploy assembly).</p>
+<h2>Indeksy analizy kodu</h2>
+<p>Wygenerowane przez <code>code2llm</code> w <code>project/</code>:</p>
+<ul>
+<li><code>analysis.toon.yaml</code> — HEALTH, REFACTOR, LAYERS  </li>
+<li><code>map.toon.yaml</code> — mapa modułów  </li>
+<li><code>evolution.toon.yaml</code> — kolejka splitów  </li>
+<li><code>context.md</code> — narracja dla LLM  </li>
+</ul>
+<p>Zasady skanowania i triażu mirrorów: <a href="platform/CODEBASE_HEALTH.html">CODEBASE_HEALTH.md</a>.</p>
+</main>
+</body>
+</html>

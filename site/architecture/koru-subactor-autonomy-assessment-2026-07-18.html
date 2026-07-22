@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ocena autonomii Koru ↔ Subactor ask — raport 2026-07-18 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Ocena autonomii Koru ↔ Subactor ask — raport 2026-07-18</h1>
+<p><strong>Data:</strong> 2026-07-18 <strong>Zakres:</strong> (A) weryfikacja publikacji domen przez <code>subactor ask</code> bez redeploy; (B) ocena implementacji Koru względem wytycznych „Werdykt” (transakcyjny workspace, bezpieczeństwo dirty tree, manifest, retry, promotion). <strong>Repozytoria:</strong> <code>/home/tom/github/subactor</code>, <code>/home/tom/github/semcod/koru</code> <strong>Metoda:</strong> inspekcja kodu + lekka weryfikacja filesystem (bez live apply / bez cutover DNS).</p>
+<hr />
+<h2>2. Werdykt skrótowy</h2>
+<p>Subactor ask działa jako founder CLI z poprawną ścieżką symlinku; pełny apply produkcyjny wymaga <strong><code>--execute --apply --yes</code></strong>, a zmiany <code>step-catalog.json</code> wymagają restartu <strong><code>hr-control</code></strong>. Publikacje logo, www i docs-stage na origin Plesk (200 przez <code>curl --resolve</code>) są potwierdzone; <code>docs.subactor.com</code> celowo bez apply. Koru <strong>częściowo spełnia</strong> wytyczne transakcyjnego patchowania: worktree, seed dirty, manifest drift, retry (max 1) i kody <code>PatchOutcome</code> są zaimplementowane w warstwie queue, ale ADR-005 pozostaje „Proposed”, <code>promotion_mode=commit</code> nie commituje po apply, a manifest nie jest trwale wiązany z każdym runem jak Subactor <code>plan_hash</code>. Most <code>development_defect</code> Subactor→Koru jest gotowy; Koru nie powinien dotykać Plesk/DNS — tylko naprawiać kod po błędach strukturalnych z ask.</p>
+<hr />
+<h2>3. Raport: subactor ask / publikacje domen (Part A)</h2>
+<h3>3.1 CLI i środowisko</h3>
+<table>
+<thead><tr><th>Element</th><th>Wartość</th><th>Dowód</th></tr></thead>
+<tbody>
+<tr><td>CLI użytkownika</td><td><code>~/.local/bin/subactor</code> → <code>platform/bin/subactor</code></td><td>symlink na dysku (2026-07-17)</td></tr>
+<tr><td>Katalog roboczy</td><td><code>/home/tom/github/subactor</code></td><td><code>WORKSPACE_DIR</code> w <code>platform/bin/subactor</code></td></tr>
+<tr><td>Control</td><td><code>http://127.0.0.1:8091</code> (domyślnie)</td><td><code>platform/bin/subactor</code></td></tr>
+</tbody></table>
+<h3>3.2 Semantyka flag ask</h3>
+<ul>
+<li><strong><code>--execute</code></strong> — approve planu + dry-run orchestratora; <strong>nie</strong> wykonuje apply produkcyjnego w trybie nieinteraktywnym.</li>
+<li><strong><code>--apply</code></strong> — implikuje <code>--execute</code> <strong>oraz</strong> osobną autoryzację produkcji (grant + lease); wymagane razem z <strong><code>--yes</code></strong> / <code>--non-interactive</code> poza TTY.</li>
+<li><strong><code>--execute --yes</code> bez <code>--apply</code></strong> — kończy na dry-run; apply pomijany (log: „apply pominięty decyzją użytkownika”).</li>
+</ul>
+<p>Implementacja: <code>platform/bin/subactor</code> (<code>cmd_ask</code>, linie ~354–563).</p>
+<h3>3.3 step-catalog i hr-control</h3>
+<p>Po edycji <code>platform/config/step-catalog.json</code> usługa <strong>hr-control</strong> trzyma katalog kroków w pamięci. Wymagany restart:</p>
+<pre><code class="language-bash">cd /home/tom/github/subactor/platform
+docker compose restart hr-control</code></pre>
+<p><strong>Lekcja (logo):</strong> pierwszy apply logo trafił na <code>/httpdocs</code> zamiast <code>/logo.subactor.com</code> przez <strong>stale in-memory step-catalog</strong>; po restarcie hr-control pack <code>logo-httpdocs-publish</code> wiąże <code>remote_path=/logo.subactor.com</code> (intent pack, nie <code>/httpdocs</code>).</p>
+<h3>3.4 Intent packi — remote_path</h3>
+<table>
+<thead><tr><th>Pack</th><th>Plik</th><th><code>remote_path</code> (defaults / resolver)</th></tr></thead>
+<tbody>
+<tr><td>logo-httpdocs-publish</td><td><code>platform/config/intent-packs/logo-httpdocs-publish.v1.json</code></td><td><code>/logo.subactor.com</code></td></tr>
+<tr><td>www-httpdocs-publish</td><td><code>platform/config/intent-packs/www-httpdocs-publish.v1.json</code></td><td><code>/httpdocs</code></td></tr>
+<tr><td>docs-httpdocs-publish</td><td><code>platform/config/intent-packs/docs-httpdocs-publish.v1.json</code></td><td>prod <code>/httpdocs</code>; <strong>docs-stage</strong> via <code>registry.mjs</code> → <code>/docs-stage.subactor.com/current</code></td></tr>
+</tbody></table>
+<p>Subdomena logo utworzona w Plesk; docroot ≠ <code>/httpdocs</code>.</p>
+<h3>3.5 Tabela wyników (2026-07-18)</h3>
+<table>
+<thead><tr><th>domain</th><th>pack</th><th>remote_path</th><th>apply</th><th>origin HTTP</th></tr></thead>
+<tbody>
+<tr><td>logo.subactor.com</td><td>logo-httpdocs-publish</td><td>/logo.subactor.com</td><td>applied 73 files PLF-407</td><td>200 via <code>curl -k --resolve logo.subactor.com:443:217.160.250.222</code></td></tr>
+<tr><td>subactor.com</td><td>www-httpdocs-publish</td><td>/httpdocs</td><td>applied 23 files PLF-404</td><td>200</td></tr>
+<tr><td>docs-stage.subactor.com</td><td>docs-httpdocs-publish</td><td>/docs-stage.subactor.com/current</td><td>applied 27 files PLF-409</td><td>200</td></tr>
+<tr><td>docs.subactor.com</td><td><em>(skipped apply)</em></td><td>pack nadal domyślnie <code>/httpdocs</code></td><td><strong>celowo nie apply</strong></td><td>—</td></tr>
+</tbody></table>
+<p><strong>DNS/Cloudflare:</strong> brak cutover dla logo (możliwy nadal GitHub Pages publicznie); testy origin używają <code>--resolve</code> na <code>217.160.250.222</code>.</p>
+<h3>3.6 Działające komendy (lab, bez ponownego apply)</h3>
+<pre><code class="language-bash"># Ścieżka CLI
+readlink -f ~/.local/bin/subactor
+cd /home/tom/github/subactor
+
+# Dry-run (bez apply)
+subactor ask &quot;opublikuj logo na logo.subactor.com&quot; --execute --yes
+
+# Pełny łańcuch: dry-run → grant → apply (nieinteraktywnie)
+subactor ask &quot;opublikuj logo na logo.subactor.com&quot; --execute --apply --yes
+
+# Po zmianie step-catalog
+cd platform &amp;&amp; docker compose restart hr-control
+
+# Origin probe (logo, bez publicznego DNS)
+curl -k -sS -o /dev/null -w '%{http_code}\n' \
+  --resolve logo.subactor.com:443:217.160.250.222 \
+  https://logo.subactor.com/
+
+# www / docs-stage (publiczne lub origin wg stanu DNS)
+curl -sS -o /dev/null -w '%{http_code}\n' https://subactor.com/
+curl -sS -o /dev/null -w '%{http_code}\n' https://docs-stage.subactor.com/</code></pre>
+<h3>3.7 Lekcje operacyjne</h3>
+<ol>
+<li><strong>Trzy bramki apply:</strong> <code>--apply</code>, signed grant (<code>plan_hash</code> + <code>jti</code>), env kill switches (<code>AUTONOMY_MUTATIONS_ENABLED</code>, <code>PLESK_SYNC_APPLY</code>).</li>
+<li><strong>Pack SSOT ≠ runtime cache</strong> — restart hr-control po sync step-catalog.</li>
+<li><strong>Logo ≠ httpdocs</strong> — osobny docroot subdomeny; błąd ścieżki = błąd konfiguracji, nie transportu.</li>
+<li><strong>docs.subactor.com</strong> — świadomie poza apply (PR9 / DNS HITL); staging na docs-stage.</li>
+</ol>
+<hr />
+<h2>4. Ocena Koru względem założeń (checklist)</h2>
+<p>Legenda: ✅ spełnione · ⚠️ częściowo · ❌ brak / niezgodne</p>
+<table>
+<thead><tr><th>#</th><th>Założenie</th><th>Status</th><th>Dowód (ścieżka)</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>Milestone:</strong> reply → normalize diff → worktree → seed dirty → apply → verify → promote → cleanup</td><td>⚠️</td><td><code>patch_transaction.py</code>, <code>workspace.py</code> (<code>staging_worktree</code> kopiuje dirty seed), <code>diff_repair.py</code>; promote = ponowny <code>git apply</code> na main po verify w worktree + <code>manifest_drift</code>; ADR <code>docs/architecture/adr/005-transactional-workspace.md</code> nadal <strong>Proposed</strong></td></tr>
+<tr><td>2</td><td><strong>P0:</strong> direct mode nie czyści dirty przez <code>git checkout --</code>; odmowa lub snapshot</td><td>✅</td><td><code>workspace.py</code> (<code>dirty_paths</code>, komentarz L131–137); <code>patch_transaction.py</code> L191–205 → <code>UNSAFE_DIRTY_WORKSPACE</code>; testy <code>test_planfile_queue.py</code></td></tr>
+<tr><td>3</td><td><strong>P0:</strong> promotion conflict — fingerprint przed promote, drift HEAD/plików</td><td>✅</td><td><code>manifest.py</code> (<code>manifest_drift</code>, SHA256 plików); <code>patch_transaction.py</code> L181–190 → <code>PROMOTION_CONFLICT</code>; testy drift/promotion conflict</td></tr>
+<tr><td>4</td><td><strong>Strukturalne kody</strong> (<code>PatchFailure</code> / <code>PatchTransactionResult</code>) vs <code>assertIn</code></td><td>⚠️</td><td><code>PatchOutcome</code> + <code>PatchApplyResult</code> w <code>patch_mode.py</code> / <code>workspace.py</code>; runner używa <code>[{code}]</code> (<code>runner.py</code> L581–582); <strong>brak</strong> typu <code>PatchTransactionResult</code>; część testów nadal <code>assertIn</code> na message</td></tr>
+<tr><td>5</td><td><strong>Retry loop</strong> na orchestratorze, max 1, tabela retryable</td><td>✅</td><td><code>patch_retry.py</code> (<code>patch_retry_budget</code> default 1, <code>KORU_QUEUE_PATCH_RETRIES</code>); <code>runner.py</code> woła <code>apply_patch_with_retry</code>, nie <code>_apply_proposed_patch</code> bezpośrednio; retryable: <code>no_patch_emitted</code>, <code>patch_does_not_apply</code>; nie-retry: verify failures</td></tr>
+<tr><td>6</td><td><strong>Immutable run manifest</strong> (plan_hash analogue)</td><td>⚠️</td><td><code>manifest.py</code> (<code>manifest_hash</code>, <code>patch_sha256</code>, <code>base_files</code>); wiązanie w retry (<code>patch_retry.py</code> L74–87); <strong>brak</strong> obowiązkowego zapisu manifestu na dysk dla trybu <code>apply</code> (tylko <code>artifact</code> → <code>.koru/runs/&lt;id&gt;/evidence.json</code>)</td></tr>
+<tr><td>7</td><td><strong>Promotion modes:</strong> apply / branch / commit / artifact</td><td>⚠️</td><td><code>patch_mode.py</code> L265–291; <code>apply</code>+<code>branch</code>+<code>artifact</code> w <code>patch_transaction.py</code>; <strong><code>commit</code></strong>: tylko odmowa dirty repo (L147–155), <strong>brak</strong> <code>git commit</code> po udanym apply na main</td></tr>
+<tr><td>8</td><td><strong>Pilot Subactor:</strong> orchestrator-only, branch, 1–2 pliki, bez Plesk/live</td><td>⚠️</td><td>Most <code>development_defect</code>: <code>subactor/docs/architecture/subactor-koru-development-bridge.md</code>, <code>orchestrator/src/development-defect.mjs</code>, <code>eql/.../failure-bridge.ts</code>; <code>subactor/docs/koru.yaml</code> zabrania DNS/Plesk; brak dedykowanego „pilot ticket template” w Koru pod subactor checkout</td></tr>
+<tr><td>9</td><td><strong>Rozmiar runner / patch_mode i miejsce logiki</strong></td><td>✅</td><td><code>runner.py</code> <strong>635</strong> linii; <code>patch_mode.py</code> <strong>334</strong>; logika transakcji w <code>patch_transaction.py</code> (<strong>309</strong>), retry w <code>patch_retry.py</code> (<strong>129</strong>), git w <code>workspace.py</code> (<strong>280</strong>) — zgodne z celem „cienki runner”</td></tr>
+<tr><td>10</td><td><strong>Index health</strong> (opcjonalnie)</td><td>✅</td><td><code>project/map.toon.yaml</code>: ~1054 modułów, <strong>cycles:0</strong>, CC̄≈3.7; hotspoty poza queue (vdisplay, scan)</td></tr>
+</tbody></table>
+<h3>Przepływ patch (skrót)</h3>
+<pre><code class="language-text">LLM stdout → extract_unified_diff (diff_repair)
+  → [artifact?] zapis .koru/runs/
+  → [worktree?] staging_worktree + seed dirty files
+  → baseline verify → git apply --check → apply → verify
+  → [branch?] commit_worktree na koru/run-&lt;id&gt;
+  → [apply?] manifest_drift → git apply na main checkout
+  → cleanup worktree (finally)
+Retry (≤1): patch_retry.apply_patch_with_retry → manifest pin → build_retry_prompt</code></pre>
+<hr />
+<h2>5. Czy wskazówki z Werdyktu są nadal aktualne?</h2>
+<p><strong>Status: częściowo aktualne, częściowo zrealizowane w kodzie, częściowo superseded przez dokument planu.</strong></p>
+<table>
+<thead><tr><th>Obszar Werdyktu</th><th>Ocena</th></tr></thead>
+<tbody>
+<tr><td>Transakcyjny workspace + dirty safety + promotion conflict</td><td><strong>Zrealizowane w queue</strong> (2026-07-18 kod); Werdykt nadal aktualny jako <strong>spec</strong>, ADR-005 jeszcze nie „Accepted”</td></tr>
+<tr><td>PatchOutcome zamiast string matching</td><td><strong>Mostly done</strong> w runtime; testy i ticket notes czasem po message</td></tr>
+<tr><td>Retry max 1 na orchestratorze</td><td><strong>Done</strong> — zgodne z Werdyktem</td></tr>
+<tr><td>Immutable manifest on disk dla każdego runu</td><td><strong>Nadal aktualna luka</strong> — Subactor ma <code>plan_hash</code> + grant; Koru manifest jest in-memory / artifact-only</td></tr>
+<tr><td>promotion_mode=commit</td><td><strong>Werdykt nadal aktualny</strong> — tryb nie dokończony</td></tr>
+<tr><td>Pilot bez Plesk</td><td><strong>Nadal aktualny</strong> — Subactor governance (ADR-003) i bridge docs to potwierdzają</td></tr>
+<tr><td>Szeroki refactor autonomous.py / capability SSOT</td><td><strong>Superseded / przesunięte</strong> przez <code>docs/architecture/autonomy-determinism-refactor-plan.md</code> (wielo-PR, borrow governance z Subactor)</td></tr>
+</tbody></table>
+<p><strong>Wniosek:</strong> Werdykt nie jest przestarzały jako lista P0 bezpieczeństwa, ale <strong>implementacja queue wyprzedziła status ADR</strong>. Kolejne PR-y powinny: Accept ADR-005, trwały manifest, dokończyć <code>commit</code>, spiąć z Subactor <code>development_defect</code>.</p>
+<hr />
+<h2>6. Synergia Koru ↔ Subactor ask</h2>
+<h3>Jak powinno działać (docelowe)</h3>
+<pre><code class="language-text">subactor ask &quot;…&quot; [--execute [--apply --yes]]
+  → intent pack + AQL + dry-run + plan_hash
+  → [apply] grant + verify origin
+  → błąd strukturalny (invalid_runner_response, plan_hash_mismatch jako bug, capability_unimplemented w kodzie)
+      → development_defect (fingerprint dedupe)
+      → kolejka Koru `development`
+      → Koru patch_mode (worktree, 1–2 pliki, regression test)
+      → subactor-improvement resolve → resume PLF-xxx (dry-run + grant + Y/n)
+  → błąd operacyjny (dns_mismatch, apply_grant_*, credential_*)
+      → HITL, NIE kolejka development</code></pre>
+<h3>Co już jest</h3>
+<ul>
+<li>Klasyfikacja: <code>orchestrator/src/development-defect.mjs</code> (<code>STRUCTURAL_DEFECT_CODES</code> vs <code>OPERATIONAL_BOUNDARY_CODES</code>).</li>
+<li>EQL bridge: <code>eql/src/integrations/koru/failure-bridge.ts</code>.</li>
+<li>Koru config: <code>subactor/docs/koru.yaml</code> — queue <code>development</code>, jawny zakaz prod mutation.</li>
+<li>CLI hook: <code>record_improvement_failure</code> w <code>platform/bin/subactor</code>.</li>
+</ul>
+<h3>Czego brakuje pod <code>subactor ask</code></h3>
+<ol>
+<li><strong>Automatyczny fingerprint</strong> dla typowych awarii ask (np. stale step-catalog → ticket na <code>platform/config/step-catalog.json</code> + test sync).</li>
+<li><strong>Korelacja plan_hash ↔ Koru manifest_hash</strong> w evidence development ticket.</li>
+<li><strong>Szablon ticketu</strong> „repair ask capability plan” z <code>acceptance_tests</code> wskazującymi na <code>subactor ask &quot;…&quot; --execute --yes</code> (dry-run green).</li>
+<li><strong>Zero coupling</strong> Koru → Plesk URI / SFTP — tylko kod subactor/orchestrator/connectors.</li>
+</ol>
+<p>Koru <strong>może</strong> wspierać użytkownika ask, o ile ogranicza się do naprawy <strong>planów i kodu</strong>, nie do „wolnego deployu”.</p>
+<hr />
+<h2>7. Rekomendowana kolejność prac (P0 / P1 / P2)</h2>
+<h3>P0 — wspólny bezpieczeństwo i spójność</h3>
+<table>
+<thead><tr><th>#</th><th>Zadanie</th><th>Projekt</th><th>Uzasadnienie</th></tr></thead>
+<tbody>
+<tr><td>P0-1</td><td>Accept ADR-005 + dokument „queue patch = transactional workspace v1”</td><td>Koru</td><td>Zamyka lukę status vs kod</td></tr>
+<tr><td>P0-2</td><td>Trwały zapis manifestu (<code>.planfile/.koru/runs/&lt;run_id&gt;/manifest.json</code>) przy każdym patch run</td><td>Koru</td><td>Parity z Subactor <code>plan_hash</code> / audyt</td></tr>
+<tr><td>P0-3</td><td>Dokończyć <code>promotion_mode=commit</code> (commit po verify) lub usunąć z API</td><td>Koru</td><td>Werdykt / honest API</td></tr>
+<tr><td>P0-4</td><td>Test regresji: hr-control reload step-catalog (bez silent stale path)</td><td>Subactor</td><td>Powtórka incydentu logo</td></tr>
+<tr><td>P0-5</td><td>Jedna ścieżka E2E: structural failure ask → development_defect → Koru patch → resume dry-run</td><td>Subactor + Koru</td><td>Dowód mostu</td></tr>
+</tbody></table>
+<h3>P1 — pilot użytkownika ask</h3>
+<table>
+<thead><tr><th>#</th><th>Zadanie</th><th>Projekt</th></tr></thead>
+<tbody>
+<tr><td>P1-1</td><td>Ticket template SELFDEV-* z polami <code>discovered_in</code>, <code>plan_hash</code>, <code>acceptance_tests</code></td><td>subactor-improvement</td></tr>
+<tr><td>P1-2</td><td>Koru tickets: <code>patch_mode: true</code>, <code>promotion_mode: branch</code>, 1–2 <code>files</code>, verify = <code>task quality:regix:local</code> lub targeted pytest</td><td>Koru / planfile</td></tr>
+<tr><td>P1-3</td><td>Mapowanie <code>plan_hash_mismatch</code> → development gdy wskazuje bug manifestu, nie ops</td><td>Subactor orchestrator</td></tr>
+<tr><td>P1-4</td><td>Dokument „ask troubleshooting” z tabelą flag CLI</td><td>Subactor docs</td></tr>
+</tbody></table>
+<h3>P2 — dojrzałość architektury</h3>
+<table>
+<thead><tr><th>#</th><th>Zadanie</th><th>Projekt</th></tr></thead>
+<tbody>
+<tr><td>P2-1</td><td>PR-y z <code>autonomy-determinism-refactor-plan.md</code> (capability SSOT, ExecutionPlan)</td><td>Koru</td></tr>
+<tr><td>P2-2</td><td>PR9 DNS cutover docs.subactor.com (HITL)</td><td>Subactor</td></tr>
+<tr><td>P2-3</td><td>Metryki dual-run intent pack → wyłączenie shadow</td><td>Subactor</td></tr>
+<tr><td>P2-4</td><td><code>PatchTransactionResult</code> jako alias/ wrapper publiczny + testy tylko po <code>code</code></td><td>Koru</td></tr>
+</tbody></table>
+<hr />
+<h2>8. Świadomie poza zakresem</h2>
+<ul>
+<li>Publiczny <strong>DNS cutover</strong> (logo, docs.prod) i Cloudflare.</li>
+<li><strong>Live apply</strong> przez ten raport (brak redeploy / brak <code>subactor ask --apply</code>).</li>
+<li><strong>Koru bezpośrednio na Plesk</strong> (SFTP, sync, grant bypass).</li>
+<li>Szeroki refactor <code>autonomous.py</code> / vdisplay hotspot w jednym tickecie.</li>
+<li>Commit tego raportu do git (dokument lokalny unless requested).</li>
+</ul>
+<hr />
+<h2>Załącznik: pliki kluczowe</h2>
+<table>
+<thead><tr><th>Temat</th><th>Ścieżka</th></tr></thead>
+<tbody>
+<tr><td>Subactor CLI</td><td><code>/home/tom/github/subactor/platform/bin/subactor</code></td></tr>
+<tr><td>Bridge doc</td><td><code>/home/tom/github/subactor/docs/architecture/subactor-koru-development-bridge.md</code></td></tr>
+<tr><td>Logo pack</td><td><code>/home/tom/github/subactor/platform/config/intent-packs/logo-httpdocs-publish.v1.json</code></td></tr>
+<tr><td>Koru patch transaction</td><td><code>/home/tom/github/semcod/koru/src/koru/queue/patch_transaction.py</code></td></tr>
+<tr><td>Koru retry</td><td><code>/home/tom/github/semcod/koru/src/koru/queue/patch_retry.py</code></td></tr>
+<tr><td>Koru manifest</td><td><code>/home/tom/github/semcod/koru/src/koru/queue/manifest.py</code></td></tr>
+<tr><td>Koru ADR workspace</td><td><code>/home/tom/github/semcod/koru/docs/architecture/adr/005-transactional-workspace.md</code></td></tr>
+<tr><td>Koru refactor plan</td><td><code>/home/tom/github/semcod/koru/docs/architecture/autonomy-determinism-refactor-plan.md</code></td></tr>
+</tbody></table>
+</main>
+</body>
+</html>

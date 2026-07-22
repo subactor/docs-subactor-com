@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "note": "Desired and observed DNS state for docs (ADR-002). Cloudflare is authoritative; Plesk is the origin hosting provider, not the DNS provider. This file is SSOT for verify ladder expectations.",
+  "observed_at": "2026-07-21",
+  "domains": {
+    "docs.subactor.com": {
+      "desired": {
+        "provider": "cloudflare",
+        "records": [
+          {
+            "type": "A",
+            "value": "217.160.250.222",
+            "comment": "Plesk public IPv4 (same as subactor.com / prototypowanie.pl panel host). Confirmed 2026-07-18 via dig A subactor.com."
+          }
+        ]
+      },
+      "observed_public": {
+        "cname": [],
+        "a": ["217.160.250.222"],
+        "tls_san": ["docs.subactor.com"],
+        "tls_covers_hostname": true,
+        "release_marker_reachable": true,
+        "interpretation": "Cloudflare authoritative DNS points directly to the Plesk origin. Cutover is public; future changes must go through the provider-aware connector and produce a receipt."
+      },
+      "observed_origin": {
+        "ip": "217.160.250.222",
+        "probe": "curl --resolve docs.subactor.com:443:217.160.250.222",
+        "https_root": "200 Subactor Docs index.html (formal release, not probe)",
+        "release_marker": "200 /__subactor_release.json release_id=rel_20260718T085927Z_a7f1328e Cache-Control=no-store",
+        "artifact_sha256": "18189fe064ca0ea39f7460d81711093c0d5b7d971aa49762624c2afd9901ddc3",
+        "plesk_object": "subdomain id 308; www_root=/var/www/vhosts/subactor.com/docs.subactor.com/current (symlink activate)",
+        "origin_tls": "Let's Encrypt CN=docs.subactor.com SAN=docs.subactor.com (YR1); publicly trusted via curl --resolve",
+        "interpretation": "Origin content + marker + LE domain-only cert ready. Public DNS still Pages — do not flip until explicit approval.",
+        "observed_at": "2026-07-18T12:15Z"
+      },
+      "observed_note": "Public docs.subactor.com resolves to the Plesk origin through Cloudflare authoritative DNS. Connector control still requires the scoped Cloudflare vault profile.",
+      "staging": {
+        "hostname": "docs-stage.subactor.com",
+        "purpose": "Recommended origin/public rehearsal path before production cutover.",
+        "observed_public": {
+          "a": ["217.160.250.222"],
+          "tls_san": ["docs-stage.subactor.com"],
+          "tls_covers_hostname": true,
+          "https_root": "200",
+          "release_marker": "404 /__subactor_release.json (rehearsal release not uploaded yet)",
+          "interpretation": "Public DNS already on Plesk origin with LE; content marker missing — not a completed publish DoD."
+        },
+        "observed_origin": {
+          "ip": "217.160.250.222",
+          "probe": "curl --resolve docs-stage.subactor.com:443:217.160.250.222",
+          "https_root": "200",
+          "release_marker": "404",
+          "observed_at": "2026-07-18T12:27Z"
+        },
+        "blocker": "Upload rehearsal release + marker to docs-stage docroot (same gates as docs); then public fingerprint can pass on stage."
+      },
+      "rollback": {
+        "dns_emergency": {
+          "cname": "subactor.github.io",
+          "healthy_for_content": false,
+          "note": "HITL only; restores Pages, not previous Plesk release. TLS SAN still wrong for docs.subactor.com."
+        },
+        "content": {
+          "mechanism": "plesk://host/site/command/release-rollback",
+          "healthy": true,
+          "current_release_id": "rel_20260718T085927Z_a7f1328e",
+          "note": "Content rollback available after a previous release exists; first formal release has no previous yet."
+        }
+      }
+    }
+  },
+  "release_marker": {
+    "path": "/__subactor_release.json",
+    "cache_control": "no-store",
+    "fields": ["release_id", "artifact_sha256", "source_commit", "built_at", "pack_version"]
+  },
+  "cutover_runbook": "docs/deployment/PR9-docs-cutover-runbook.md",
+  "dns_provider": {
+    "registrar": "Namecheap",
+    "nameservers": ["addyson.ns.cloudflare.com", "roman.ns.cloudflare.com"],
+    "dns01_ready": false,
+    "connector_uri": "plesk://host/dns/command/reconcile",
+    "authority_uri": "plesk://host/dns/query/authority",
+    "propagation_uri": "plesk://host/dns/query/propagation",
+    "vault_entry_id": "cloudflare-dns",
+    "blocker": "Cloudflare API token and zone_id are not yet present in the platform vault, so Subactor can observe authority/propagation but cannot issue a provider API receipt for future changes."
+  },
+  "needs_human": [
+    "Provide a scoped Cloudflare API token with Zone DNS Edit and Zone Read plus the subactor.com zone_id through one-time secret intake.",
+    "Keep all future boundary DNS changes on the provider-aware dry-run → exact plan_hash → one-time apply grant path."
+  ],
+  "subscription_rights_note": "Customer subactor_customer on webspace subactor.com: manage_subdomains=true, create_domains=true, max_subdom=-1. Connector subdomain-ensure wired. LE XML ApiRpc not implemented; certificate get-pool denied for subscription."
+}

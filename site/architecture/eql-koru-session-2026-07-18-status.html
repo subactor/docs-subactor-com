@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EQL v0.6 web demo + Koru development-defect classification — status sesji — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>EQL v0.6 web demo + Koru development-defect classification — status sesji</h1>
+<p><strong>Data:</strong> 2026-07-18 <strong>Zakres:</strong> (1) live-testing i naprawa <code>eql/</code> web runtime v0.6.0 (demo + biblioteka), (2) test pipeline'u <code>subactor ask</code> → Koru <code>development</code> queue i naprawa błędnej klasyfikacji defektów. <strong>Powiązane dokumenty:</strong> <a href="./subactor-koru-development-bridge.html"><code>subactor-koru-development-bridge.md</code></a>, <a href="../ops/subactor-ask-troubleshooting.html"><code>../ops/subactor-ask-troubleshooting.md</code></a>, <a href="./koru-subactor-autonomy-assessment-2026-07-18.html"><code>koru-subactor-autonomy-assessment-2026-07-18.md</code></a></p>
+<hr />
+<h2>1. EQL Web Runtime v0.6.0 — live testing i bugfixy</h2>
+<p>Repo: <code>~/github/subactor/eql</code> (osobne repo prototypowe, <strong>nie pushowane do origin</strong> — decyzja właściciela z wcześniejszej sesji, <code>main</code> istnieje tylko lokalnie).</p>
+<h3>1.1 Metoda testowania</h3>
+<p>Zamiast polegać wyłącznie na testach jednostkowych, uruchomiono żywe demo (<code>examples/web-adaptive-site/</code>) pod <code>node scripts/serve-web-example.mjs</code> i przetestowano je narzędziem właściciela <strong>TestQL</strong> (<code>~/github/oqlos/testql</code>, zainstalowane w <code>~/github/subactor/.venv</code>) z prawdziwym Playwrightem — klikanie przycisków scenariuszy w realnej przeglądarce i asercje na faktycznym stanie DOM (klasy CSS, zmienne <code>--eql-accent</code>, widoczność sekcji, <code>document.body.classList</code>), a nie tylko na odpowiedziach HTTP.</p>
+<p>Uwaga: rozszerzenie <code>claude-in-chrome</code> (CDP) miało w tej sesji zablokowany/zawieszony <code>Page.captureScreenshot</code> (timeout na dwóch niezależnych tabach) — zrzuty ekranu nie działały, więc weryfikacja wizualna poszła przez <code>read_page</code>/TestQL zamiast screenshotów. To ograniczenie środowiska, nie appki.</p>
+<h3>1.2 Bug #1 — SVG: nieznany model renderował się jako <code>process-flow</code></h3>
+<p><strong>Plik:</strong> <code>src/svg/models.ts</code> <strong>Commit:</strong> <code>e9555e0</code></p>
+<p><code>generateSvgModel()</code> używał łańcucha ternary bez domyślnego odrzucenia — każda nierozpoznana wartość <code>request.model</code> cicho renderowała się jako <code>process-flow</code> zamiast zwrócić błąd. Ścieżka EQL-syntax (<code>src/svg/parser.ts:44</code>) miała już poprawną walidację (<code>eql_svg_unknown_model:&lt;name&gt;</code>), więc to była niespójność między dwoma wejściami do tej samej funkcjonalności, nie zamierzone zachowanie.</p>
+<p><strong>Fix:</strong> dodano <code>KNOWN_SVG_MODELS</code> + jawny <code>throw</code> przy nieznanym modelu, zgodnie z konwencją nazewnictwa błędów już używaną w parserze.</p>
+<p><strong>Weryfikacja:</strong></p>
+<pre><code>POST /api/eql/svg {&quot;model&quot;:&quot;bogus-model&quot;,...} → {&quot;error&quot;:&quot;eql_svg_unknown_model:bogus-model&quot;}</code></pre>
+<h3>1.3 Bug #2 — <code>ADD_CLASS &quot;body&quot;</code> nigdy nie działał (żaden scenariusz)</h3>
+<p><strong>Plik:</strong> <code>src/dql/safety.ts</code> <strong>Commit:</strong> <code>5081786</code> <strong>Znaleziony przez:</strong> żywy test TestQL (nie wykryty przez istniejący <code>tests/web-runtime.test.ts</code>, który nigdy nie asercjonował <code>document.body.classList</code>).</p>
+<p><code>normalizeDqlTarget()</code> sprawdzał ogólny wzorzec <code>SAFE_TARGET</code> (dowolny bezpieczny identyfikator) <strong>przed</strong> specjalnym przypadkiem literału <code>&quot;body&quot;</code>:</p>
+<pre><code class="language-ts">// PRZED (błąd)
+if (SAFE_TARGET.test(trimmed)) return `[data-eql=&quot;${trimmed}&quot;]`;   // &quot;body&quot; pasuje tu pierwsze
+if (trimmed === &quot;:root&quot; || trimmed === &quot;body&quot; || ...) return trimmed;  // ten branch nigdy nieosiągalny dla &quot;body&quot;</code></pre>
+<p>Efekt: <code>ADD_CLASS &quot;body&quot; &quot;eql-fast&quot;</code> (i analogicznie dla <strong>każdego</strong> z 8 scenariuszy demo — <code>eql-default</code>, <code>eql-fast</code>, <code>eql-recovery</code>, <code>eql-reduced-motion</code>, <code>eql-price</code>, <code>eql-deliberate</code>, <code>eql-returning</code>, <code>eql-mobile</code>) rozwiązywał się do selektora <code>[data-eql=&quot;body&quot;]</code>, który nie pasuje do żadnego elementu na stronie (atrybut <code>data-eql</code> nie jest nigdzie ustawiony na <code>&lt;body&gt;</code>). <code>document.body.className</code> zostawał pusty niezależnie od wybranego scenariusza. Zmienne CSS i teksty (inna ścieżka kodu w <code>apply.ts</code>) działały poprawnie — dlatego błąd był niewidoczny przy powierzchownym teście przez <code>curl</code>/HTTP.</p>
+<p><strong>Fix:</strong> zamieniono kolejność sprawdzeń — literalne <code>&quot;body&quot;</code>/<code>&quot;:root&quot;</code> sprawdzane pierwsze.</p>
+<p><strong>Regresja:</strong> dodano <code>assert.equal(document.body.classList.contains(&quot;eql-fast&quot;), true)</code> (+ sprawdzenie po rollbacku) do <code>tests/web-runtime.test.ts</code>.</p>
+<p><strong>Weryfikacja (przed/po, live TestQL, 8 scenariuszy + rollback):</strong></p>
+<table>
+<thead><tr><th>Scenariusz</th><th>Przed</th><th>Po</th></tr></thead>
+<tbody>
+<tr><td><code>default</code> (auto na starcie)</td><td><code>body.className = &quot;&quot;</code></td><td><code>body.className = &quot;eql-default&quot;</code></td></tr>
+<tr><td><code>fast-path</code> (wymaga zgody)</td><td><code>&quot;&quot;</code></td><td><code>&quot;eql-fast&quot;</code></td></tr>
+<tr><td><code>recovery</code></td><td><code>&quot;&quot;</code></td><td><code>&quot;eql-recovery&quot;</code></td></tr>
+<tr><td><code>reduced-motion</code></td><td><code>&quot;&quot;</code></td><td><code>&quot;eql-reduced-motion&quot;</code></td></tr>
+<tr><td><code>price-transparency</code></td><td><code>&quot;&quot;</code></td><td><code>&quot;eql-price&quot;</code></td></tr>
+<tr><td>powrót do <code>default</code> (rollback)</td><td>n/d</td><td><code>--eql-accent</code> i widoczność sekcji <code>price</code> poprawnie przywrócone</td></tr>
+</tbody></table>
+<p>Pełny zestaw jednostkowy po fixie: <strong>67/67 pass</strong> (<code>node --test dist/tests/*.test.js</code>).</p>
+<h3>1.4 Drobna poprawka kosmetyczna</h3>
+<p><code>examples/web-adaptive-site/index.html</code>: <code>&lt;title&gt;</code>/<code>.eyebrow</code> pokazywały „v0.5&quot; mimo że faktycznie ładowany bundle to <code>cdn/v0.6.0/...</code> (backend <code>/health</code> już raportował <code>0.6.0</code>). Poprawiono na „v0.6&quot; — nie miało wpływu na działanie, tylko na etykietę.</p>
+<h3>1.5 Nie-bug: „Mobile&quot; scenariusz w demie</h3>
+<p>Kontekst przycisku „Mobile&quot; (<code>pace:&quot;fast&quot;, decisionStage:&quot;acting&quot;</code>) spełnia jednocześnie warunki scenariusza <code>fast-path</code> (priorytet 100) i <code>mobile-focus</code> (priorytet 70) — <code>fast-path</code> poprawnie wygrywa (<code>rankScenarios</code> sortuje malejąco po <code>priority</code>). Zamierzone działanie systemu priorytetów, nie błąd — odnotowane jako obserwacja, nie zmieniane.</p>
+<h3>1.6 Recurring ryzyko: zewnętrzny proces „refactoring&quot;</h3>
+<p>W trakcie sesji repo <code>eql</code> otrzymywało kilkukrotnie automatyczne commity z komunikatem <code>refactoring</code> (poza kontrolą tej sesji — prawdopodobnie zewnętrzny proces mergowania pakietów po stronie właściciela). Wcześniej w tej sesji (przed bieżącym fragmentem) proces ten czterokrotnie spłaszczał <code>src/mock/openrouter-server.ts</code> z powrotem do monolitycznej wersji, wymagając ręcznego odtworzenia ekstrakcji funkcji. W tym fragmencie sesji jeden taki commit (<code>40e40a4</code>) nadpisał <code>examples/web-adaptive-site/index.html</code>, ale <strong>zachował</strong> wcześniejszą poprawkę tytułu v0.6 zamiast ją cofnąć — więc mechanizm wygląda na okresowy snapshot/merge stanu roboczego, niekoniecznie destrukcyjny, ale nieprzewidywalny.</p>
+<hr />
+<h2>2. <code>subactor ask</code> → Koru <code>development</code> queue — test na żywo i fix klasyfikacji</h2>
+<p>Repo: <code>orchestrator</code> (<code>~/github/subactor/orchestrator</code>), zmiana <strong>wypchnięta na <code>main</code></strong> (<code>309ee9c..a3628b1</code>) zgodnie z wcześniej ustaloną zasadą tej sesji „push bezpośrednio na main, bez PR&quot; dla repozytoriów umbrella <code>subactor</code>.</p>
+<h3>2.1 Test na żywo (bezpieczny — bez <code>--execute</code>/<code>--apply</code>)</h3>
+<pre><code class="language-bash">./bin/subactor ask &quot;wykonaj identity pod domena id.subactor.com&quot;</code></pre>
+<p>„Identity&quot; w tym kontekście nie oznacza IAM/domeny — repo <code>identity</code> to strona brandingowa pod <code>identity.subactor.com</code>, nie istnieje żadna ścieżka provisioningu domeny <code>id.subactor.com</code>. Zapytanie zostało poprawnie sklasyfikowane przez LLM-intent jako model AQL <code>onboarding-communications.pl.aql</code> (onboarding pracownika), a że nie podano wymaganych pól (<code>employee_name</code>, <code>requested_email</code>, ...), propozycja planu zakończyła się <code>invalid_inputs</code>.</p>
+<p>Bare <code>subactor ask</code> (bez <code>--execute</code>/<code>--apply</code>) nigdy nie wykonuje ani nie aplikuje niczego — potwierdzone czytaniem <code>platform/bin/subactor</code> (<code>cmd_ask</code>): brak TTY → skrypt kończy się na <code>exit 1</code> zaraz po <code>record_improvement_failure</code>, przed jakąkolwiek bramką execute/apply-grant/mutate-lease.</p>
+<h3>2.2 Znalezisko: błędna klasyfikacja <code>invalid_inputs</code> jako defektu kodu</h3>
+<p>Porażka <code>invalid_inputs</code> została automatycznie przekazana do kolejki Koru <code>development</code> (przez <code>classifyDevelopmentFailure()</code> w <code>orchestrator/src/development-defect.mjs</code>) i <strong>zdedupliła się</strong> (po fingerprintcie <code>control-plan-gate:invalid_inputs</code>) na już istniejący ticket <code>SELFDEV-005</code> (<code>~/github/subactor-improvement/.planfile/</code>), założony wcześniej tego samego dnia z innego źródłowego ticketu (<code>PLF-371</code>). Ten ticket miał już za sobą <strong>jedną nieudaną próbę autonomicznej naprawy</strong> (<code>agent_did_not_commit_repair</code> — agent LLM nie znalazł nic do załatania, poddał się po ~70s), 1/3 prób zużyte.</p>
+<p><strong>Analiza źródła:</strong> <code>invalid_inputs</code> jest emitowany wyłącznie przez <code>resolveAql()</code>/<code>validateInputs()</code> w <code>runtime/src/aql-runtime.mjs:207</code>, gdy <code>situation</code> (dane od foundera) nie zawiera pól wymaganych przez plan AQL. To <strong>zawsze</strong> brak danych od człowieka — nigdy błąd kodu. Mimo to <code>classifyDevelopmentFailure()</code> łapał ten kod przez zbyt ogólny wzorzec <code>/invalid_/</code> (miał on obsługiwać prawdziwie strukturalne kody typu <code>invalid_runner_response</code>), więc każde niekompletne zapytanie foundera generowało bezużyteczny ticket repair w Koru.</p>
+<p><strong>Fix (<code>orchestrator/src/development-defect.mjs</code>):</strong> dodano <code>HUMAN_INPUT_CODES = new Set([&quot;invalid_inputs&quot;])</code>, sprawdzane przed regexem strukturalnym → klasyfikacja <code>{action: &quot;ignore&quot;, category: &quot;needs_human_input&quot;}</code>. Ticket founderowy (<code>waiting_input</code>, z podpowiedzią <code>--field k=v</code>) zostaje — to jedyna poprawna ścieżka.</p>
+<p><strong>Weryfikacja:</strong> ten sam <code>subactor ask</code> puszczony drugi raz → nowy ticket <code>PLF-411</code> utworzony normalnie, ale <strong>bez</strong> linii <code>↻ development: SELFDEV-…</code> (poprzednio się pojawiała przy <code>PLF-410</code>). Zero nowych wpisów <code>SELFDEV</code> w planfile <code>subactor-improvement</code>.</p>
+<p><strong>Testy:</strong> <code>orchestrator/tests/development-defect.test.mjs</code> — nowy test <code>&quot;invalid_inputs is a human-input gap, not a code defect&quot;</code>; pełny <code>npm test</code>: <strong>32/32 pass</strong>.</p>
+<h3>2.3 Świadomie NIE naprawione: <code>urirun_node_unavailable</code></h3>
+<p>Ticket <code>SELFDEV-006</code> w tym samym planfile ma identyczny wzorzec (<code>agent_did_not_commit_repair</code>), ale fingerprint <code>urirun_node_unavailable</code> (emitowany w <code>runtime/src/task-runtime.mjs:170</code>, gdy klient HTTP <code>urirun-node</code> rzuci nieoczekiwany wyjątek). W przeciwieństwie do <code>invalid_inputs</code> <strong>nie mam dowodu</strong>, że to niemożliwe do naprawienia w kodzie — może to być realny bug w obsłudze połączenia/timeoutu. Zostawione bez zmian, patrz sekcja 3.</p>
+<hr />
+<h2>3. Problemy nadal otwarte</h2>
+<h3>3.1 Koru / development queue</h3>
+<ul>
+<li><strong><code>SELFDEV-006</code> (<code>urirun_node_unavailable</code>) nieprzebadany.</strong> Ten sam objaw co naprawiony <code>invalid_inputs</code> (<code>agent_did_not_commit_repair</code>), ale bez potwierdzenia czy to zła klasyfikacja czy prawdziwy bug w <code>runtime/src/task-runtime.mjs</code>. Wymaga osobnego dochodzenia zanim ktokolwiek odpali na nim <code>koru --queue</code>.</li>
+<li><strong><code>SELFDEV-005</code> nadal <code>blocked</code>, nierozwiązany.</strong> Ma teraz 1/3 prób zużyte i dodatkową notatkę z mojego testu (<code>PLF-410</code>). Nie zdecydowano, czy ręcznie zamknąć ten ticket (bo po fixie z sekcji 2.2 nie powinien już nigdy się odtworzyć), czy zostawić do naturalnego wygaśnięcia.</li>
+<li><strong><code>PLF-410</code> i <code>PLF-411</code> wiszą w kolejce <code>founder</code></strong> (<code>waiting_input</code>) — testowe zapytania, nikt nie uzupełnił pól onboardingowych. Do ręcznego zamknięcia/zignorowania przez właściciela.</li>
+<li><strong>Regex-catch-all w <code>classifyDevelopmentFailure()</code> (<code>/not_implemented|invalid_|truncated|parse_error|schema_/</code>) może mieć inne fałszywe trafienia</strong> poza <code>invalid_inputs</code> — nie przeprowadzono pełnego audytu wszystkich kodów błędów w systemie pod kątem tego wzorca. Naprawiono tylko przypadek z konkretnym dowodem.</li>
+</ul>
+<h3>3.2 EQL</h3>
+<ul>
+<li><strong>Repo <code>eql</code> nadal nie jest pushowane do <code>origin</code></strong> — cała historia (w tym oba dzisiejsze fixy) istnieje tylko lokalnie. Ryzyko utraty przy awarii dysku; decyzja o pushu należy do właściciela (wcześniejsze wyraźne „zostaw lokalnie, nie pushuj&quot;).</li>
+<li><strong>Zewnętrzny proces „refactoring&quot; pozostaje nieprzewidywalny</strong> (patrz 1.6) — może w przyszłości ponownie nadpisać pliki źródłowe niezależnie od tej sesji. Nie ma obecnie żadnego mechanizmu ochrony poza czujnością przy kolejnych rundach testów.</li>
+<li><strong>Weryfikacja wizualna przez zrzuty ekranu (<code>claude-in-chrome</code>/CDP) nie działała w tej sesji</strong> (<code>Page.captureScreenshot</code> timeout na dwóch tabach) — nieznana przyczyna (środowisko, nie appka). Testy TestQL to obeszły przez odczyt DOM zamiast pikseli, ale prawdziwa weryfikacja wizualna (kolory, layout) nie została wykonana.</li>
+<li><strong>Brak testu end-to-end na <code>EQL_API_TOKEN</code>/CORS gate</strong> (<code>examples/node-server/server.ts</code>) wprowadzonych w v0.6.0 — przetestowano tylko happy-path bez tokenu/originu.</li>
+</ul>
+<h3>3.3 Poza zakresem tej sesji (bez zmian)</h3>
+<p>Zgodnie z wcześniej ustalonymi granicami (<code>docs/ops/subactor-ask-troubleshooting.md</code> §5, §6): real intake kolejki Koru z mock LLM na masową skalę, <code>subactor ask --apply</code>, jakiekolwiek mutacje DNS/Plesk/credentials/apply-grant. Żadna z tych granic nie została naruszona ani przesunięta w tej sesji.</p>
+</main>
+</body>
+</html>

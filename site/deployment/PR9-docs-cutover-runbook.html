@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PR9 — docs.subactor.com Pages → Plesk cutover (runbook) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>PR9 — docs.subactor.com Pages → Plesk cutover (runbook)</h1>
+<p><strong>Status:</strong> preparation only — <strong>do not</strong> flip production DNS until every gate below is green. <strong>Related:</strong> ADR-002 (DNS SSOT), ADR-004 (publish DoD), ADR-005 (rollback), PR8 verify ladder. <strong>Staging preference:</strong> <code>docs-stage.subactor.com</code> (infra optional; origin Host / <code>curl --resolve</code> works without it).</p>
+<h2>Honesty (2026-07-18 continuation #4 — formal origin release + cert block)</h2>
+<p>Observed <strong>public</strong> <code>docs.subactor.com</code> (read-only):</p>
+<table>
+<thead><tr><th>Check</th><th>Result</th><th>Implication</th></tr></thead>
+<tbody>
+<tr><td>DNS CNAME</td><td><code>subactor.github.io.</code></td><td>Still on <strong>GitHub Pages</strong></td></tr>
+<tr><td>DNS A</td><td><code>185.199.108–111.153</code> (Pages anycast)</td><td>≠ Plesk origin</td></tr>
+<tr><td>TLS SAN</td><td><code>*.github.io</code> / <code>*.github.com</code> — <strong>not</strong> <code>docs.subactor.com</code></td><td>Pages TLS is an <strong>unhealthy</strong> last_known_good for hostname DoD</td></tr>
+<tr><td><code>GET /__subactor_release.json</code></td><td>TLS verify fails (SAN mismatch)</td><td>Public fingerprint DoD <strong>cannot</strong> pass until cutover + cert</td></tr>
+</tbody></table>
+<p>Observed <strong>origin</strong> via <code>curl --resolve docs.subactor.com:443:217.160.250.222</code>:</p>
+<table>
+<thead><tr><th>Check</th><th>Result</th><th>Implication</th></tr></thead>
+<tbody>
+<tr><td>HTTPS <code>/</code></td><td><strong>200</strong> Subactor Docs <code>index.html</code></td><td>Formal release live (not probe)</td></tr>
+<tr><td><code>/__subactor_release.json</code></td><td><strong>200</strong> <code>rel_20260718T085927Z_a7f1328e</code>; <code>Cache-Control: no-store</code></td><td>Origin fingerprint ready</td></tr>
+<tr><td>Origin TLS</td><td>self-signed <code>CN=Plesk</code></td><td>G2 still red for public DoD / strict TLS</td></tr>
+<tr><td><code>www_root</code></td><td><code>/var/www/vhosts/subactor.com/docs.subactor.com/current</code></td><td>Symlink activate serves live docroot</td></tr>
+<tr><td>HTTP <code>:80</code></td><td><strong>301</strong> → HTTPS</td><td>Expected</td></tr>
+</tbody></table>
+<p><strong>Release path (gates honored):</strong> dry-run <code>release-upload</code> → signed <code>apply_grant</code> + <code>plan_hash</code> → apply upload (24 files) → new grant → <code>release-activate</code> (<code>symlink</code>) → set subdomain <code>www_root</code> → <code>current</code>. Apply used <code>AUTONOMY_MUTATIONS_ENABLED=1</code> + <code>PLESK_SYNC_APPLY=1</code> only for this window; both <strong>cleared</strong> after (fail-closed). Recipe: <a href="./docs-origin-release.urirun.json"><code>docs-origin-release.urirun.json</code></a>.</p>
+<p><strong>Certificate attempt (honest):</strong></p>
+<table>
+<thead><tr><th>Path</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>DNS-01 (preferred pre-cutover)</td><td><strong>Blocked</strong> — zone on Cloudflare (<code>addyson</code>/<code>roman</code>); <strong>no</strong> Cloudflare API token in platform env</td></tr>
+<tr><td>HTTP-01 via Plesk LE now</td><td><strong>Would fail</strong> — public DNS still Pages; ACME challenge would not hit origin</td></tr>
+<tr><td>Plesk XML <code>extension/letsencrypt</code></td><td><strong>1013</strong> — <code>Hook ApiRpc is not implemented in letsencrypt</code></td></tr>
+<tr><td>Subscription <code>certificate/get-pool</code></td><td><strong>1006</strong> Permission denied</td></tr>
+<tr><td>Apex LE today</td><td>SAN = <code>subactor.com</code>, <code>mail.subactor.com</code> only — <strong>no</strong> <code>docs.subactor.com</code></td></tr>
+</tbody></table>
+<p><strong>Connector:</strong> <code>plesk://host/site/command/subdomain-ensure</code> wired (idempotent XML add). Subdomains 308/309 already existed; ensure returned <code>existed=true</code>.</p>
+<p><strong>Cutover today: NO</strong> — G2/G6 red; DNS HITL must not run.</p>
+<h2>Gate status (2026-07-18 continuation #4)</h2>
+<table>
+<thead><tr><th>Gate</th><th>Status</th><th>Evidence / blocker</th></tr></thead>
+<tbody>
+<tr><td><strong>G0</strong> Intent &amp; ownership</td><td><strong>YELLOW</strong></td><td>Desired A filled; Pages CNAME emergency saved. Boundary HITL approval <strong>not</strong> recorded.</td></tr>
+<tr><td><strong>G1</strong> Origin content ready</td><td><strong>GREEN</strong></td><td>Formal <code>release-upload</code>→<code>activate</code> + <code>www_root</code>→<code>current</code>; marker 200 + <code>Cache-Control: no-store</code> via <code>--resolve</code>.</td></tr>
+<tr><td><strong>G2</strong> Certificate plan</td><td><strong>RED</strong></td><td>Path chosen (DNS-01 preferred) but <strong>blocked</strong>: no Cloudflare API for DNS-01; HTTP-01 unsafe until DNS flip; Plesk LE XML/API unavailable to subscription. Origin still <code>CN=Plesk</code>.</td></tr>
+<tr><td><strong>G3</strong> DNS provider readiness</td><td><strong>YELLOW</strong></td><td>Cloudflare NS known; no API token; live mutate still HITL; TTL not lowered.</td></tr>
+<tr><td><strong>G4</strong> Verify ladder</td><td><strong>YELLOW</strong></td><td>Origin content fingerprint OK (<code>curl -k --resolve</code>); strict TLS / public Pages still fail (expected).</td></tr>
+<tr><td><strong>G5</strong> Rollback targets</td><td><strong>YELLOW</strong></td><td>Content rollback via <code>release-rollback</code> now possible (release on origin); DNS emergency = unhealthy Pages LKG.</td></tr>
+<tr><td><strong>G6</strong> Go / no-go</td><td><strong>RED</strong></td><td>Stop — do not mutate production DNS (cert + HITL).</td></tr>
+</tbody></table>
+<h2>Gates (all required before DNS mutate)</h2>
+<h3>G0 — Intent &amp; ownership</h3>
+<ul>
+<li>[ ] Cutover owned as <strong>boundary-class</strong> HITL (ADR-003) — not zero-touch reversible publish.</li>
+<li>[x] Desired DNS recorded in <a href="./dns-desired-state.json"><code>dns-desired-state.json</code></a> with real Plesk A/AAAA (no placeholder).</li>
+<li>[x] Previous desired (Pages → <code>subactor.github.io</code>) saved as emergency DNS rollback target (HITL only; <strong>not</strong> content LKG).</li>
+</ul>
+<h3>G1 — Origin content ready (no public DNS required)</h3>
+<ul>
+<li>[x] <strong>Plesk subdomain</strong> <code>docs.subactor.com</code> (+ optional <code>docs-stage</code>) under subscription <code>subactor.com</code> — <strong>created 2026-07-18</strong> via XML API (<code>subdomain.add</code>; ids 308/309). Separate docroots (not primary <code>/httpdocs</code>).</li>
+<li>[x] SFTP probe: <code>__subactor_release.json</code> + <code>index.html</code> on origin docroot; <code>--resolve</code> HTTPS 200 (2026-07-18).</li>
+<li>[x] Formal release uploaded under Plesk release root (<code>releases/rel_…</code> + activate <code>current</code>) via connector — <strong>2026-07-18</strong> <code>rel_20260718T085927Z_a7f1328e</code>; <code>www_root</code> → <code>…/current</code>.</li>
+<li>[x] Marker <code>Cache-Control: no-store</code> on live responses (<code>.htaccess</code> + confirmed header).</li>
+<li>[ ] Prefer rehearsal content on <strong><code>docs-stage.subactor.com</code></strong> origin before production DNS.</li>
+<li>[x] Subscription permissions OK — <strong>not</strong> the blocker (<code>manage_subdomains</code> / <code>create_domains</code> true; unlimited <code>max_subdom</code>).</li>
+<li>[x] Connector URI <code>plesk://host/site/command/subdomain-ensure</code> — <strong>wired 2026-07-18</strong>. Do not upload into primary prototypowanie.pl <code>httpdocs</code>.</li>
+<li>[x] Rebuild urirun-node with paramiko (SFTP) — <strong>done 2026-07-18</strong> (<code>production_publish_ready=true</code>; live methods sftp+ftp ok).</li>
+</ul>
+<h3>G2 — Certificate plan</h3>
+<ul>
+<li>[x] Choose path: <strong>DNS-01 before cutover (preferred)</strong>; HTTP-01 only immediately after DNS flip.</li>
+<li>[ ] Cert will include SAN <code>docs.subactor.com</code> (and <code>docs-stage.subactor.com</code> if used) — <strong>not issued yet</strong>.</li>
+<li>[x] Who runs issuance: founder/HITL via <strong>Cloudflare DNS-01</strong> (API token) <strong>or</strong> Plesk panel LE after DNS→Plesk — not LLM; XML LE hook unavailable on this host.</li>
+</ul>
+<h3>G3 — DNS provider readiness</h3>
+<ul>
+<li>[ ] Authoritative zone editable (Cloudflare API or panel) — API token <strong>missing</strong>.</li>
+<li>[ ] Intent stub <a href="./dns-record-reconcile.urirun.json"><code>dns-record-reconcile</code></a> reviewed; live mutate still HITL.</li>
+<li>[ ] TTL lowered ahead of cutover (e.g. 60–300s) with enough wait for caches.</li>
+<li>[ ] No residual CNAME to <code>*.github.io</code> after cutover.</li>
+</ul>
+<h3>G4 — Verify ladder (PR8) against <strong>desired</strong> targets</h3>
+<p>Enable on recipe / CLI:</p>
+<pre><code class="language-text">plesk://host/site/command/publish-verify
+  hostname=docs.subactor.com
+  release_id=…
+  artifact_sha256=…
+  origin_ip=217.160.250.222          # pre-cutover
+  dns_targets=[217.160.250.222]      # post-cutover
+  verify_origin=true
+  verify_public=true              # only after DNS+TLS green
+  check_dns=true
+  check_tls=true</code></pre>
+<ul>
+<li>[x] Pre-cutover: origin content fingerprint green via <code>--resolve</code> (insecure TLS expected until G2); public DNS check still fails (Pages) — expected.</li>
+<li>[ ] Post-cutover: full ladder green → plan may reach <code>completed</code>.</li>
+<li>[ ] <code>200 + stale fingerprint</code> → <code>applied_unverified</code> → content rollback (<code>release-rollback</code>) or ticket — <strong>never</strong> <code>ok</code>/<code>completed</code>.</li>
+</ul>
+<h3>G5 — Rollback targets (healthy)</h3>
+<table>
+<thead><tr><th>Layer</th><th>Healthy target</th><th>Unhealthy / notes</th></tr></thead>
+<tbody>
+<tr><td>Content</td><td>Previous Plesk release (<code>activate(previous)</code>)</td><td>Current: <code>rel_20260718T085927Z_a7f1328e</code>; rollback URI ready after next release</td></tr>
+<tr><td>DNS emergency</td><td>Prior CNAME → <code>subactor.github.io</code> (HITL)</td><td>Restores Pages; TLS SAN still wrong for <code>docs.subactor.com</code> until Pages/custom-domain cert fixed — <strong>ops emergency only</strong></td></tr>
+<tr><td>Staging</td><td><code>docs-stage.subactor.com</code> on Plesk</td><td>Subdomain exists (309); rehearsal content still optional</td></tr>
+</tbody></table>
+<h3>G6 — Go / no-go</h3>
+<p>Cutover is allowed only when:</p>
+<ol>
+<li>G1 origin fingerprint green,  </li>
+<li>G2 cert path agreed (DNS-01 ready <strong>or</strong> immediate LE plan),  </li>
+<li>G3 TTL↓ + provider access,  </li>
+<li>Founder/admin HITL approval recorded,  </li>
+<li>On-call can run content rollback + DNS emergency.</li>
+</ol>
+<p><strong>If any gate is red → stop. Do not mutate production DNS.</strong></p>
+<h2>Cutover sequence (when gates green)</h2>
+<ol>
+<li>Final origin verify (<code>--resolve</code>).</li>
+<li>Issue/confirm cert (DNS-01 on Cloudflare) <strong>or</strong> prepare HTTP-01 after DNS.</li>
+<li>HITL: apply DNS A/AAAA (or ALIAS) → Plesk; remove Pages CNAME.</li>
+<li>Wait TTL / check authoritative + public resolvers.</li>
+<li>Confirm TLS SAN includes <code>docs.subactor.com</code>.</li>
+<li><code>publish-verify</code> with <code>verify_public=true</code> → fingerprint match.</li>
+<li>Only then report publish / plan <code>completed</code>.</li>
+<li>If verify fails → content <code>release-rollback</code> and/or DNS emergency HITL; status <code>rolled_back</code> / <code>applied_unverified</code>, never fake success.</li>
+</ol>
+<h2>Automation hooks (prep)</h2>
+<table>
+<thead><tr><th>Hook</th><th>State</th></tr></thead>
+<tbody>
+<tr><td><code>plesk://…/publish-verify</code></td><td><strong>PR8 done</strong> (mocked + optional live)</td></tr>
+<tr><td><code>__subactor_release.json</code> on upload</td><td><strong>PR8 done</strong></td></tr>
+<tr><td>Orchestrator <code>applied_unverified</code></td><td><strong>PR8 done</strong></td></tr>
+<tr><td>Desired DNS file</td><td><a href="./dns-desired-state.json"><code>dns-desired-state.json</code></a> — A=<code>217.160.250.222</code></td></tr>
+<tr><td>Origin release recipe</td><td><a href="./docs-origin-release.urirun.json"><code>docs-origin-release.urirun.json</code></a></td></tr>
+<tr><td><code>plesk://…/subdomain-ensure</code></td><td><strong>wired</strong> (connector)</td></tr>
+<tr><td><code>dns-record-reconcile</code> recipe stub</td><td><a href="./dns-record-reconcile.urirun.json"><code>dns-record-reconcile.urirun.json</code></a> — <strong>not</strong> in intent-pack registry yet (avoids dual-run churn); register in PR9 when AQL + provider connector wired</td></tr>
+<tr><td>Intent pack <code>dns-record-reconcile.v1.json</code></td><td>Deferred until AQL model + Cloudflare/dns connector grant exist</td></tr>
+</tbody></table>
+<h2>Out of scope here</h2>
+<ul>
+<li>Flipping production DNS without green gates / explicit HITL.</li>
+<li>Claiming public <code>docs.subactor.com</code> is on Plesk.</li>
+<li>Uploading docs into primary <code>prototypowanie.pl</code> httpdocs as a substitute for the docs addon.</li>
+</ul>
+<h2>Parallel work while PR9 blocked</h2>
+<p>See <a href="./PR10-legacy-resolver-cleanup.html"><code>PR10-legacy-resolver-cleanup.md</code></a> — reduce dual-run / legacy resolvers (pack-first already stable for docs/www).</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLF-806 — pojemność wykonawców i bezpieczne delegowanie — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>PLF-806 — pojemność wykonawców i bezpieczne delegowanie</h1>
+<h2>Wynik</h2>
+<p>Manager delegowania pod adresem <code>http://127.0.0.1:8091/?tab=delegation</code> pokazuje dla każdego aktywnego człowieka, bota i maszyny:</p>
+<ul>
+<li>wykonywane teraz tickety oraz ich estymowany pozostały czas;</li>
+<li>liczbę ticketów w kolejce i sumę estymat;</li>
+<li>osobno liczbę ticketów <code>waiting_input</code> i procesów tła;</li>
+<li>przewidywany czas zwolnienia, wykorzystanie najbliższej godziny i liczbę</li>
+</ul>
+<p>dodatkowych typowych zadań możliwych do przyjęcia;</p>
+<ul>
+<li>skrót operacji dozwolonych przez aktywny kontrakt AQL;</li>
+<li>liczbę istniejących przypisań, których URI Process nie mieści się w</li>
+</ul>
+<p>kontrakcie przypisanego wykonawcy.</p>
+<p>Endpoint źródłowy: <code>GET /api/delegation/manager</code>, pole <code>workloads</code>.</p>
+<h2>Model estymacji</h2>
+<p>Ticket może podać etykietę <code>estimate-minutes:N</code> (1–1440). Bez etykiety stosowane są jawne wartości planistyczne: Founder 30 min, inny człowiek 45 min, bot/maszyna/usługa 20 min, pozostałe typy 30 min. Priorytet modyfikuje wartość domyślną. Dla zadania rozpoczętego odejmowany jest czas od <code>started_at</code>, ale pozostaje minimum pięć minut.</p>
+<p>To jest estymata bufora, nie SLA. Procesy z etykietą <code>controller</code>, <code>scheduler</code>, <code>background</code>, nazwą controller/scheduler/watchdog albo <code>max_attempts &gt;= 1000</code> są widoczne jako tło i nie zajmują bufora wykonawczego.</p>
+<h2>Zasady routingu</h2>
+<ol>
+<li>Najpierw musi pasować reguła i aktywny kontrakt AQL musi pokrywać wszystkie</li>
+</ol>
+<p>wymagane operacje oraz URI Process.</p>
+<ol>
+<li>Dopiero wśród wykonawców z pokryciem polityka <code>least_loaded</code> porównuje</li>
+</ol>
+<p>estymowane minuty, pracę bieżącą i długość kolejki.</p>
+<ol>
+<li><code>waiting_input</code>, sekrety wymagające authority, zadania terminalne i zadania</li>
+</ol>
+<p>bez pokrycia nie są automatycznie delegowane.</p>
+<ol>
+<li>Dispatcher zapisuje delegację, ale sama delegacja nie jest dowodem wykonania.</li>
+</ol>
+<p>Wykonanie wymaga konsumenta kolejki oraz terminalnego receiptu.</p>
+<p>Naprawiono również wcześniejsze zawyżanie obciążenia: tickety <code>failed</code> nie są już klasyfikowane jako aktywne. Zwykły snapshot nie opisuje <code>waiting_input</code> jako „gotowy”, tylko jako <code>waiting_for_input</code>.</p>
+<h2>Tickety remediacyjne utworzone z audytu</h2>
+<table>
+<thead><tr><th>Ticket</th><th>Odpowiedzialność</th><th>Dlaczego ten wykonawca</th></tr></thead>
+<tbody>
+<tr><td><code>PLF-808</code></td><td>sieć LAN gateway i pełny monitoring</td><td><code>administrator-bot</code>, kontrakt obejmuje proces repozytorium wymagany do naprawy konfiguracji</td></tr>
+<tr><td><code>PLF-809</code></td><td>churn reconciliation i publiczne postconditions</td><td><code>project-operator-bot</code>, kontrakt obejmuje <code>project.reconcile</code> i <code>project://*</code></td></tr>
+<tr><td><code>PLF-810</code></td><td>stare blokery, duplikaty i notification wrappers</td><td><code>project-operator-bot</code>, kontrakt obejmuje <code>planfile.ticket.ensure</code> i <code>planfile://*</code></td></tr>
+<tr><td><code>PLF-811</code></td><td>rozbieżne kontrakty exact URI oraz brak konsumentów kolejek</td><td><code>administrator-bot</code>, kontrakt obejmuje repozytoryjne procesy naprawcze</td></tr>
+</tbody></table>
+<p><code>PLF-682</code>, <code>PLF-683</code> i <code>PLF-684</code> nie powinny być uznane za poprawnie wykonywane tylko dlatego, że mają <code>assigned_to</code>: wymagają <code>repo://</code>, a wskazani w nich wykonawcy nie mają spójnego aktywnego kontraktu (dla <code>security-bot</code> nie ma nawet aktywnego bytu w rejestrze). PLF-811 ma usunąć tę rozbieżność bez automatycznego rozszerzania praw.</p>
+<h2>Testy</h2>
+<ul>
+<li>jednostkowe: rozdzielenie current/queue/waiting/background, estymaty,</li>
+</ul>
+<p>wykrywanie przypisań poza AQL, wybór po ETA oraz fail-closed dla <code>waiting_input</code>;</p>
+<ul>
+<li>kontrakt panelu: obecność tabeli workload i poprawne ścieżki do płaskiego</li>
+</ul>
+<p>katalogu <code>platform/config</code>;</p>
+<ul>
+<li>pełny pakiet Control: 318 testów, 312 zaliczonych i 6 świadomie pominiętych.</li>
+</ul>
+</main>
+</body>
+</html>

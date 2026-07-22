@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Operations — 2026-07-17 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Operations — 2026-07-17</h1>
+<p>34 operation(s): ✅ 23 executed · 🕓 11 proposed</p>
+<h3>✅ 16:04:27 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4owiv_e497ba5c3b</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:04:30 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4oyab_eb2de7c582</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 16:04:32 — Offboarding bez autoryzacji — blokada</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4ozxx_3e314d35c3</code></td></tr>
+<tr><td>Model</td><td><code>offboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>notify_hr_authorization_required</code>, <code>create_private_followup_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>5aa45477432e03ba…</code></td></tr>
+</tbody></table>
+<h3>✅ 16:04:32 — Onboarding strategicznego klienta</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4p02l_7fd47ca98d</code></td></tr>
+<tr><td>Model</td><td><code>client-lifecycle.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_client_record</code>, <code>create_contact_record</code>, <code>create_client_conversation</code>, <code>create_client_project</code>, <code>create_client_followup_task</code>, <code>create_client_commitment</code>, <code>notify_account_owner_email</code></td></tr>
+<tr><td>OQL hash</td><td><code>26aef2f5ad265691…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:05:12 — Uruchom system biznesowy: CyberMysz E2E Project</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4pv11_629346b033</code></td></tr>
+<tr><td>Model</td><td><code>project-business-bootstrap.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_research_process</code>, <code>create_positioning_process</code>, <code>create_advertising_process</code>, <code>create_content_process</code>, <code>create_lead_capture_process</code>, <code>create_sales_process</code>, <code>create_revenue_process</code>, <code>create_product_roadmap_process</code>, <code>create_finance_billing_process</code>, <code>create_legal_compliance_process</code>, <code>create_people_capacity_process</code>, <code>create_partnerships_procurement_process</code>, <code>create_analytics_experiments_process</code>, <code>create_security_privacy_process</code>, <code>create_delivery_process</code>, <code>create_support_process</code>, <code>create_retention_process</code>, <code>create_governance_process</code>, <code>create_technical_documentation_task</code>, <code>create_market_validation_task</code>, <code>create_initial_campaign</code>, <code>create_primary_offer_review</code>, <code>create_sales_pipeline_task</code>, <code>create_support_knowledge_task</code>, <code>create_revenue_measurement_task</code>, <code>create_project_outcome</code>, <code>create_project_testql_suite</code>, <code>run_project_business_testql</code></td></tr>
+<tr><td>OQL hash</td><td><code>de2b729909ffc96b…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:05:30 — Autonomiczny onboarding TestQL</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4q8ir_763a6f3614</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved contract:contract_mrp4q8hz_bb465b6954</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>486f88838ee76ed3…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 16:05:32 — Poza kontraktem</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4qa9u_7fcbcee5da</code></td></tr>
+<tr><td>Model</td><td><code>offboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>disable_plesk_mailbox</code>, <code>send_offboarding_manager_email</code>, <code>create_offboarding_audit_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>c13cee2354a8bbac…</code></td></tr>
+</tbody></table>
+<h3>✅ 16:05:34 — Digital Twin human checkpoint</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4qbmj_7d5bde8b5f</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>17f6c3e075e5eb30…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:05:37 — Publikacja spersonalizowanej strony Subactor</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp4qek5_069e9693fd</code></td></tr>
+<tr><td>Model</td><td><code>project-site-publication.pl.aql</code></td></tr>
+<tr><td>Target</td><td><code>subactor-1784304337922.example.test</code> (docroot not resolved)</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>publish_project_site</code>, <code>create_project_contact_mailbox</code></td></tr>
+<tr><td>OQL hash</td><td><code>ae28d6c30f41d245…</code></td></tr>
+<tr><td>Result</td><td>;</td></tr>
+</tbody></table>
+<h3>✅ 16:21:55 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5bck8_c66446c704</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:21:57 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5bea8_5c8c979031</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 16:21:59 — Offboarding bez autoryzacji — blokada</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5bg0e_50a7771729</code></td></tr>
+<tr><td>Model</td><td><code>offboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>notify_hr_authorization_required</code>, <code>create_private_followup_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>5aa45477432e03ba…</code></td></tr>
+</tbody></table>
+<h3>✅ 16:21:59 — Onboarding strategicznego klienta</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5bg58_f09358a6de</code></td></tr>
+<tr><td>Model</td><td><code>client-lifecycle.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_client_record</code>, <code>create_contact_record</code>, <code>create_client_conversation</code>, <code>create_client_project</code>, <code>create_client_followup_task</code>, <code>create_client_commitment</code>, <code>notify_account_owner_email</code></td></tr>
+<tr><td>OQL hash</td><td><code>26aef2f5ad265691…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:22:36 — Uruchom system biznesowy: CyberMysz E2E Project</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5c8mt_13e63557c0</code></td></tr>
+<tr><td>Model</td><td><code>project-business-bootstrap.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_research_process</code>, <code>create_positioning_process</code>, <code>create_advertising_process</code>, <code>create_content_process</code>, <code>create_lead_capture_process</code>, <code>create_sales_process</code>, <code>create_revenue_process</code>, <code>create_product_roadmap_process</code>, <code>create_finance_billing_process</code>, <code>create_legal_compliance_process</code>, <code>create_people_capacity_process</code>, <code>create_partnerships_procurement_process</code>, <code>create_analytics_experiments_process</code>, <code>create_security_privacy_process</code>, <code>create_delivery_process</code>, <code>create_support_process</code>, <code>create_retention_process</code>, <code>create_governance_process</code>, <code>create_technical_documentation_task</code>, <code>create_market_validation_task</code>, <code>create_initial_campaign</code>, <code>create_primary_offer_review</code>, <code>create_sales_pipeline_task</code>, <code>create_support_knowledge_task</code>, <code>create_revenue_measurement_task</code>, <code>create_project_outcome</code>, <code>create_project_testql_suite</code>, <code>run_project_business_testql</code></td></tr>
+<tr><td>OQL hash</td><td><code>ed2eb403ca1df1a2…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:22:58 — Autonomiczny onboarding TestQL</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5cpn7_7d3224ca6a</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved contract:contract_mrp5cpm4_3c304df55e</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>8842e4f8e20771d5…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 16:23:01 — Poza kontraktem</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5cs0v_24427d9ffb</code></td></tr>
+<tr><td>Model</td><td><code>offboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>disable_plesk_mailbox</code>, <code>send_offboarding_manager_email</code>, <code>create_offboarding_audit_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>c13cee2354a8bbac…</code></td></tr>
+</tbody></table>
+<h3>✅ 16:23:03 — Digital Twin human checkpoint</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5ctof_3d9531ae9a</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>a301a8e3bcddc283…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 16:23:08 — Publikacja spersonalizowanej strony Subactor</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp5cww6_646dba8028</code></td></tr>
+<tr><td>Model</td><td><code>project-site-publication.pl.aql</code></td></tr>
+<tr><td>Target</td><td><code>subactor-1784305388101.example.test</code> (docroot not resolved)</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>publish_project_site</code>, <code>create_project_contact_mailbox</code></td></tr>
+<tr><td>OQL hash</td><td><code>ea346babccd38251…</code></td></tr>
+<tr><td>Result</td><td>;</td></tr>
+</tbody></table>
+<h3>✅ 17:08:23 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp6z43p_207db88b63</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 17:08:25 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp6z5yf_e01555d7a4</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 17:08:28 — Offboarding bez autoryzacji — blokada</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp6z7om_9b9cb63d5c</code></td></tr>
+<tr><td>Model</td><td><code>offboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>notify_hr_authorization_required</code>, <code>create_private_followup_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>5aa45477432e03ba…</code></td></tr>
+</tbody></table>
+<h3>✅ 17:08:28 — Onboarding strategicznego klienta</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp6z7tc_4009f7b6f6</code></td></tr>
+<tr><td>Model</td><td><code>client-lifecycle.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_client_record</code>, <code>create_contact_record</code>, <code>create_client_conversation</code>, <code>create_client_project</code>, <code>create_client_followup_task</code>, <code>create_client_commitment</code>, <code>notify_account_owner_email</code></td></tr>
+<tr><td>OQL hash</td><td><code>26aef2f5ad265691…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 17:09:07 — Uruchom system biznesowy: CyberMysz E2E Project</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp7022i_11f07f88cf</code></td></tr>
+<tr><td>Model</td><td><code>project-business-bootstrap.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_research_process</code>, <code>create_positioning_process</code>, <code>create_advertising_process</code>, <code>create_content_process</code>, <code>create_lead_capture_process</code>, <code>create_sales_process</code>, <code>create_revenue_process</code>, <code>create_product_roadmap_process</code>, <code>create_finance_billing_process</code>, <code>create_legal_compliance_process</code>, <code>create_people_capacity_process</code>, <code>create_partnerships_procurement_process</code>, <code>create_analytics_experiments_process</code>, <code>create_security_privacy_process</code>, <code>create_delivery_process</code>, <code>create_support_process</code>, <code>create_retention_process</code>, <code>create_governance_process</code>, <code>create_technical_documentation_task</code>, <code>create_market_validation_task</code>, <code>create_initial_campaign</code>, <code>create_primary_offer_review</code>, <code>create_sales_pipeline_task</code>, <code>create_support_knowledge_task</code>, <code>create_revenue_measurement_task</code>, <code>create_project_outcome</code>, <code>create_project_testql_suite</code>, <code>run_project_business_testql</code></td></tr>
+<tr><td>OQL hash</td><td><code>ad64ad1d11ad0b8d…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 17:09:29 — Autonomiczny onboarding TestQL</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp70iwq_802d66ddbf</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved contract:contract_mrp70ivz_3118121f61</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>d49dc738c1b52960…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 17:09:31 — Poza kontraktem</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp70km0_cfce979c20</code></td></tr>
+<tr><td>Model</td><td><code>offboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>disable_plesk_mailbox</code>, <code>send_offboarding_manager_email</code>, <code>create_offboarding_audit_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>c13cee2354a8bbac…</code></td></tr>
+</tbody></table>
+<h3>✅ 17:09:33 — Digital Twin human checkpoint</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp70m26_ad036b1df9</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>93a34c1264a1a4bb…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>✅ 17:09:37 — Publikacja spersonalizowanej strony Subactor</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp70p60_164362baa0</code></td></tr>
+<tr><td>Model</td><td><code>project-site-publication.pl.aql</code></td></tr>
+<tr><td>Target</td><td><code>subactor-1784308177461.example.test</code> (docroot not resolved)</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>publish_project_site</code>, <code>create_project_contact_mailbox</code></td></tr>
+<tr><td>OQL hash</td><td><code>d3acbd370a93a1e6…</code></td></tr>
+<tr><td>Result</td><td>;</td></tr>
+</tbody></table>
+<h3>✅ 17:14:11 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp76kqj_8c237dd744</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>339e35690368e4d7…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 17:32:08 — CLI test onboarding</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp7tnbk_3b756dc2b6</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>create_intro_calendar</code></td></tr>
+<tr><td>OQL hash</td><td><code>479c90cd12722c8a…</code></td></tr>
+</tbody></table>
+<h3>🕓 17:32:35 — Founder CLI: Zatrudnij zdalnie Annę Nowak, start za 7 dni</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp7u8gz_81d0a2d95c</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code> via founder-cli</td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>create_intro_calendar</code></td></tr>
+<tr><td>OQL hash</td><td><code>479c90cd12722c8a…</code></td></tr>
+</tbody></table>
+<h3>✅ 17:32:53 — Founder CLI: Onboarding zdalny: Marek Kowalski, start za 3 dni</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrp7umnt_812937b036</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code> via founder-cli</td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>executed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>Bootstrap admin → approved Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>create_intro_calendar</code></td></tr>
+<tr><td>OQL hash</td><td><code>74febf980393e343…</code></td></tr>
+<tr><td>Result</td><td>; ; ; ;</td></tr>
+</tbody></table>
+<h3>🕓 22:10:36 — Founder: sync www httpdocs</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrphrrpp_4345c9681a</code></td></tr>
+<tr><td>Model</td><td><code>www-httpdocs-sync.pl.aql</code></td></tr>
+<tr><td>Target</td><td><code>subactor.com</code> (docroot not resolved)</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_www_httpdocs_sync_ticket</code></td></tr>
+<tr><td>OQL hash</td><td><code>ce685a87e0196cb3…</code></td></tr>
+</tbody></table>
+<h3>🕓 22:10:37 — Founder CLI: opublikuj www na subactor.com</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrphrs2p_835126fce1</code></td></tr>
+<tr><td>Model</td><td><code>www-httpdocs-sync.pl.aql</code> via founder-cli</td></tr>
+<tr><td>Target</td><td><code>subactor.com</code> (docroot not resolved)</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_www_httpdocs_sync_ticket</code></td></tr>
+<tr><td>OQL hash</td><td><code>ce685a87e0196cb3…</code></td></tr>
+</tbody></table>
+<h3>🕓 22:24:13 — Publikacja subactor.com na Plesk</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrpi9a68_a4490a85c5</code></td></tr>
+<tr><td>Model</td><td><code>www-httpdocs-sync.pl.aql</code></td></tr>
+<tr><td>Target</td><td><code>subactor.com</code> (docroot not resolved)</td></tr>
+<tr><td>Status</td><td><strong>proposed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created</td></tr>
+<tr><td>By</td><td>Bootstrap admin</td></tr>
+<tr><td>Steps</td><td><code>create_www_httpdocs_sync_ticket</code></td></tr>
+<tr><td>OQL hash</td><td><code>ce685a87e0196cb3…</code></td></tr>
+</tbody></table>
+</main>
+</body>
+</html>

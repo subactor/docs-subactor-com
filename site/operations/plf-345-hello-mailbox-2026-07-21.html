@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLF-345 — skrzynka `hello@subactor.com` — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>PLF-345 — skrzynka <code>hello@subactor.com</code></h1>
+<blockquote>Aktualizacja: utworzenie opisane poniżej pozostaje faktem historycznym, ale<br /><code>hello@subactor.com</code> nie jest już kanoniczną tożsamością agenta. Ticket<br />PLF-767 ustawił <code>agent@subactor.com</code> jako skrzynkę IMAP/SMTP runtime'u i<br />zachował tę skrzynkę bez usuwania. Szczegóły:<br /><code>docs/operations/plf-767-canonical-agent-mailbox-2026-07-21.md</code>.</blockquote>
+<p>Data wykonania: 2026-07-21. Decydent: <code>authority:founder</code>.</p>
+<h2>Rezultat</h2>
+<p>Skrzynka <code>hello@subactor.com</code> została utworzona przez Plesk REST API v2, wywołujące oficjalną operację CLI <code>mail</code>. Connector najpierw wykonał <code>mail --info</code>, otrzymał stan <code>exists=false</code>, a następnie zastosował dokładnie zatwierdzony plan tworzenia. Po operacji ponowny odczyt zwrócił <code>exists=true</code>.</p>
+<p>Hasło zostało wygenerowane wewnątrz connectora i nie było elementem wyniku URI. Connector zapisał je bezpośrednio w dwóch wpisach szyfrowanego vault:</p>
+<ul>
+<li><code>agent-mailbox-runtime</code>, origin <code>imap://mail.prototypowanie.pl</code>;</li>
+<li><code>smtp-system-email</code>, origin <code>https://prototypowanie.pl</code>.</li>
+</ul>
+<p>Plan: <code>6844137233b91fd0e9d642485380c2d2d8f324d4de0d5d63e778c5216c225a9e</code>. Apply wymagał bramek <code>AUTONOMY_MUTATIONS_ENABLED=1</code> i <code>PLESK_MAILBOX_APPLY=1</code> oraz jednorazowego grantu klasy <code>governance</code>. Po wykonaniu obie bramki wróciły do stanu zamkniętego.</p>
+<h2>Proces AQL → OQL → URI → EQL</h2>
+<ol>
+<li>AQL: <code>authority:founder</code> zatwierdza konkretną skrzynkę, zakres vault i</li>
+</ol>
+<p>zabrania ujawnienia sekretu.</p>
+<ol>
+<li>OQL: <code>mailbox.ensure</code> uzgadnia stan istniejący z wymaganym; <code>email.send</code></li>
+</ol>
+<p>wymaga transportu <code>external</code>; <code>inbound.email.classify</code> nie nadaje uprawnień treści od nieznanego nadawcy.</p>
+<ol>
+<li>URI: <code>plesk://host/mailbox/query/status</code> i</li>
+</ol>
+<p><code>plesk://host/mailbox/command/ensure</code> wykonują Plesk/vault; agent IMAP i bridge SMTP korzystają wyłącznie z dzierżaw vault.</p>
+<ol>
+<li>EQL: skrzynka istnieje, logowanie IMAP i SMTP działa, sekret nie jest</li>
+</ol>
+<p>widoczny, spam trafia do kwarantanny, a nieznany klient nie może uruchomić polecenia.</p>
+<h2>Dowody wykonania</h2>
+<ul>
+<li>Plesk: <code>SUCCESS: Creation of mailname 'hello@subactor.com' complete</code>;</li>
+<li>końcowy status Plesk: <code>exists=true</code>;</li>
+<li>inbound-email-agent: stan <code>ready</code>, ostatni poll bez błędu;</li>
+<li>SMTP: transport <code>external</code>, expectation <code>transport == external</code> spełnione;</li>
+<li>pętla SMTP → IMAP: wiadomość <code>[PLF-345 E2E 20260721T1455Z]</code> odebrana i</li>
+</ul>
+<p>zarejestrowana jako ticket <code>PLF-763</code>;</p>
+<ul>
+<li><code>PLF-763</code>: utworzony w kolejce <code>customer-support</code> ze stanem <code>waiting_input</code>,</li>
+</ul>
+<p><code>classification=customer</code> i <code>command_authorized=false</code>; po weryfikacji jako syntetyczny test został zamknięty bez wykonania treści;</p>
+<ul>
+<li>syntetyczny test nagłówka <code>X-Spam-Flag: YES</code>: <code>classification=spam</code>,</li>
+</ul>
+<p><code>quarantined=true</code>, bez utworzenia ticketu;</p>
+<ul>
+<li>wiadomość testowa do <code>tom@prototypowanie.pl</code> została zaakceptowana przez SMTP;</li>
+</ul>
+<p>błąd pierwszego receiptu dotyczył wyłącznie formatu expectation wykonanego już po komendzie SMTP, dlatego wiadomości nie wysyłano ponownie.</p>
+<h2>Model bezpieczeństwa</h2>
+<p>Znany człowiek lub bot może utworzyć polecenie tylko po zgodności aktywnego kontaktu Org Core, kontraktu AQL oraz SPF/DKIM/DMARC. Nieznany, poprawnie uwierzytelniony nadawca na publiczny adres tworzy wyłącznie zgłoszenie klienta do ręcznej obsługi. Wiadomość oznaczona przez serwer jako spam ma pierwszeństwo i trafia do kwarantanny. Ten podział zapobiega interpretowaniu publicznej poczty jako zdalnego kanału wykonywania instrukcji.</p>
+<p>Dokumentacja operacji Plesk: <a href="https://docs.plesk.com/en-US/obsidian/cli-linux/using-command-line-utilities/mail-mail-accounts.39181/">Mail Accounts CLI</a> oraz <a href="https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/reference/managing-mail/creating-mail-accounts.34499/">XML API — creating mail accounts</a>.</p>
+</main>
+</body>
+</html>

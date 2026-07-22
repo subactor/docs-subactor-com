@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plesk deployment (docs.subactor.com httpdocs) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Plesk deployment (docs.subactor.com httpdocs)</h1>
+<p>Static docs tree in this repository (<code>index.html</code>, markdown under <code>platform/</code>, <code>plans/</code>, <code>autonomy-cli-runbook.md</code>, …) is published to the subscription <code>httpdocs/</code> for domain <code>docs.subactor.com</code>.</p>
+<p>Keep remote <code>.htaccess</code> and <code>.well-known/</code> (sync does not delete them).</p>
+<h2>Automated path</h2>
+<p>Same architecture as <a href="../../www/deployment/PLESK.html"><code>www/deployment/PLESK.md</code></a>:</p>
+<pre><code class="language-text">NL / agent intent
+  → Planfile ticket (uri_processes) or OQL plesk.site.sync
+    → process.run / urirun-node
+      → plesk://host/site/command/sync
+        → SFTP (preferred) or FTP tree upload to /httpdocs</code></pre>
+<p>Recipe: <code>docs-httpdocs-sync.urirun.json</code>. Plan: <a href="../plans/docs-subactor-com-publish.html"><code>docs/plans/docs-subactor-com-publish.md</code></a>.</p>
+<p>Source must be a directory named <code>docs</code> (or under <code>PLESK_SYNC_ALLOWED_SOURCES</code>).</p>
+<pre><code class="language-bash">cd ~/github/subactor/orchestrator
+node bin/subactor-run.mjs --recipe ../docs/deployment/docs-httpdocs-sync.urirun.json
+# apply: export PLESK_SYNC_APPLY=1 &amp;&amp; … --execute</code></pre>
+<p>NL phrases live in <code>agents/nlp-uri-phrases.yaml</code> (docs-httpdocs-sync-dry-run).</p>
+</main>
+</body>
+</html>

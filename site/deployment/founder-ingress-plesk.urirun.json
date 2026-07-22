@@ -1,0 +1,267 @@
+{
+  "schema": "subactor.process-envelope.v2",
+  "plan_id": "public-founder-ingress-v2",
+  "reason": "Utworzyć i zweryfikować publiczny, uwierzytelniony ingress founder.subactor.com przez Plesk.",
+  "requested_by": "authority:founder",
+  "approval_policy": "exact_plan_hash_single_use",
+  "runtime_bindings": {
+    "plesk_base_url": "https://prototypowanie.pl:8443",
+    "parent_domain": "subactor.com",
+    "hostname": "founder.subactor.com",
+    "subdomain_label": "founder",
+    "www_root": "founder.subactor.com",
+    "origin_ip": "217.160.250.222",
+    "upstream_url": "REQUIRED_REACHABLE_AUTHENTICATED_UPSTREAM"
+  },
+  "definitions": {
+    "aql": [
+      {
+        "model": "public-founder-ingress.pl.aql",
+        "actor": "bot:project-operator-bot",
+        "allow": [
+          "plesk.doctor.query",
+          "plesk.subscription.query",
+          "plesk.subdomain.ensure.approved",
+          "plesk.site.reverse_proxy.ensure.approved",
+          "plesk.dns.authority.query",
+          "plesk.dns.reconcile.approved",
+          "plesk.ssl.ensure.approved",
+          "public.https.verify"
+        ],
+        "deny": [
+          "credential.output",
+          "wildcard.dns.mutate",
+          "unscoped.domain.mutate",
+          "tls.disable",
+          "public.unauthenticated.dashboard",
+          "mutation.without.exact_plan_hash"
+        ]
+      }
+    ],
+    "eql": [
+      {
+        "id": "plesk-object",
+        "expected": {
+          "hostname": "founder.subactor.com",
+          "exists": true,
+          "parent": "subactor.com"
+        }
+      },
+      {
+        "id": "ingress",
+        "expected": {
+          "upstream_reachable": true,
+          "authentication_required": true,
+          "secrets_not_in_repository": true
+        }
+      },
+      {
+        "id": "dns",
+        "expected": {
+          "hostname": "founder.subactor.com",
+          "value": "217.160.250.222",
+          "authoritative_provider_verified": true
+        }
+      },
+      {
+        "id": "tls",
+        "expected": {
+          "strict_tls": true,
+          "san_contains": "founder.subactor.com"
+        }
+      },
+      {
+        "id": "application",
+        "expected": {
+          "path": "/founder/action",
+          "status": 200,
+          "one_time_token_boundary": true
+        }
+      }
+    ],
+    "oql": [
+      {
+        "id": "connector-preflight",
+        "op": "plesk.doctor.query",
+        "target": "prototypowanie.pl"
+      },
+      {
+        "id": "subscription-preflight",
+        "op": "plesk.subscription.capabilities.query",
+        "target": "subactor.com"
+      },
+      {
+        "id": "ensure-subdomain",
+        "op": "plesk.subdomain.ensure.approved",
+        "target": "founder.subactor.com"
+      },
+      {
+        "id": "verify-subdomain",
+        "op": "plesk.subdomain.verify",
+        "target": "founder.subactor.com"
+      },
+      {
+        "id": "configure-ingress",
+        "op": "plesk.site.reverse_proxy.ensure.approved",
+        "target": "founder.subactor.com"
+      },
+      {
+        "id": "detect-dns-authority",
+        "op": "dns.authority.detect",
+        "target": "subactor.com"
+      },
+      {
+        "id": "reconcile-dns",
+        "op": "dns.provider.reconcile.approved",
+        "target": "founder.subactor.com"
+      },
+      {
+        "id": "ensure-tls",
+        "op": "plesk.site.ssl.ensure.approved",
+        "target": "founder.subactor.com"
+      },
+      {
+        "id": "verify-public",
+        "op": "https.strict.verify",
+        "target": "https://founder.subactor.com/founder/action"
+      }
+    ],
+    "uri": [
+      {
+        "id": "connector-preflight",
+        "uri": "plesk://host/doctor/query/report",
+        "payload": {},
+        "depends_on": [],
+        "human_approval": false
+      },
+      {
+        "id": "subscription-preflight",
+        "uri": "plesk://host/subscription/query/capabilities",
+        "payload": {
+          "subscription": "subactor.com",
+          "base_url": "https://prototypowanie.pl:8443"
+        },
+        "depends_on": [
+          "connector-preflight"
+        ],
+        "human_approval": false
+      },
+      {
+        "id": "ensure-subdomain",
+        "uri": "plesk://host/site/command/subdomain-ensure",
+        "payload": {
+          "parent_domain": "subactor.com",
+          "subdomain": "founder",
+          "www_root": "founder.subactor.com",
+          "base_url": "https://prototypowanie.pl:8443",
+          "apply": false
+        },
+        "depends_on": [
+          "subscription-preflight"
+        ],
+        "human_approval": true
+      },
+      {
+        "id": "verify-subdomain",
+        "uri": "plesk://host/site/command/subdomain-ensure",
+        "payload": {
+          "parent_domain": "subactor.com",
+          "subdomain": "founder",
+          "www_root": "founder.subactor.com",
+          "base_url": "https://prototypowanie.pl:8443",
+          "apply": false
+        },
+        "depends_on": [
+          "ensure-subdomain"
+        ],
+        "human_approval": false
+      },
+      {
+        "id": "configure-ingress",
+        "uri": "plesk://host/site/command/reverse-proxy-ensure",
+        "implementation_status": "connector_route_required",
+        "payload": {
+          "hostname": "founder.subactor.com",
+          "upstream": "REQUIRED_REACHABLE_AUTHENTICATED_UPSTREAM",
+          "authentication_required": true,
+          "apply": false
+        },
+        "depends_on": [
+          "verify-subdomain"
+        ],
+        "human_approval": true
+      },
+      {
+        "id": "detect-dns-authority",
+        "uri": "plesk://host/dns/query/authority",
+        "payload": {
+          "zone": "subactor.com"
+        },
+        "depends_on": [
+          "verify-subdomain"
+        ],
+        "human_approval": false
+      },
+      {
+        "id": "reconcile-dns",
+        "uri": "plesk://host/dns/command/reconcile",
+        "payload": {
+          "zone": "subactor.com",
+          "host": "founder.subactor.com",
+          "record_type": "A",
+          "value": "217.160.250.222",
+          "expected_provider": "cloudflare",
+          "apply": false
+        },
+        "depends_on": [
+          "configure-ingress",
+          "detect-dns-authority"
+        ],
+        "human_approval": true
+      },
+      {
+        "id": "ensure-tls",
+        "uri": "plesk://host/site/command/ssl-ensure",
+        "payload": {
+          "hostname": "founder.subactor.com",
+          "origin_ip": "217.160.250.222",
+          "base_url": "https://prototypowanie.pl:8443",
+          "provider": "auto",
+          "apply": false
+        },
+        "depends_on": [
+          "reconcile-dns"
+        ],
+        "human_approval": true
+      },
+      {
+        "id": "verify-dns",
+        "uri": "plesk://host/dns/query/propagation",
+        "payload": {
+          "host": "founder.subactor.com",
+          "record_type": "A",
+          "expected_value": "217.160.250.222"
+        },
+        "depends_on": [
+          "reconcile-dns"
+        ],
+        "human_approval": false
+      },
+      {
+        "id": "verify-public",
+        "uri": "plesk://host/site/command/publish-verify",
+        "payload": {
+          "domain": "founder.subactor.com",
+          "origin_ip": "217.160.250.222",
+          "verify_path": "/founder/action",
+          "strict_tls": true
+        },
+        "depends_on": [
+          "ensure-tls",
+          "verify-dns"
+        ],
+        "human_approval": false
+      }
+    ]
+  }
+}

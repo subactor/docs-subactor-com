@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Szczegółowy plan naprawczy platformy Subactor — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Szczegółowy plan naprawczy platformy Subactor</h1>
+<p><strong>Stan planu:</strong> 2026-07-19, Europe/Warsaw <strong>Cel:</strong> przejście z bezpiecznego <code>dry-run</code> do kontrolowanego działania produkcyjnego bez obchodzenia uprawnień, prawa, budżetów ani zabezpieczeń. <strong>Dokument bazowy:</strong> <a href="../architecture/unresolved-live-autonomy-blockers-2026-07-19.html"><code>Blokery pełnej autonomii, których nie można zamknąć lokalnie</code></a>.</p>
+<h2>1. Diagnoza</h2>
+<p>Autonomia działa częściowo i prawidłowo w trybie fail-closed. System potrafi przygotować plan, wykonać testy, zebrać dowody i odmówić mutacji, gdy brakuje mandatu, credentiali, umowy, konfiguracji albo podstawy prawnej. Naprawa nie polega na wyłączeniu bramek, lecz na domknięciu ścieżki:</p>
+<pre><code class="language-text">cel → plan → dry-run → capability → authority → budżet i jurysdykcja
+→ jednorazowy grant związany z plan_hash → apply → verify → evidence
+→ rollback albo utrwalenie zmiany</code></pre>
+<p>Każdy brak zewnętrzny ma być typowanym blockerem z właścicielem, wymaganym dowodem i terminem ważności. Kod nie może stworzyć brakującej zgody, umowy, konta ani sekretu.</p>
+<h2>2. Pierwszy pion produkcyjny</h2>
+<p>Pierwszy płatny pilot obejmuje:</p>
+<ol>
+<li>publikację treści na istniejącej domenie i vhoście;</li>
+<li>grant ograniczony do konkretnego <code>plan_hash</code> i targetu;</li>
+<li>publiczny HTTPS verify oraz fingerprint treści;</li>
+<li>evidence wykonania i rzeczywisty test rollbacku;</li>
+<li>monitoring oraz automatyczny incydent;</li>
+<li>zatwierdzenie umocowanej osoby przed mutacją.</li>
+</ol>
+<p>Poza pilotem pozostają: tworzenie domen przy nieznanym limicie, telefonia, produkcyjne e-sign, rekrutacja, wydatki marketplace i zmiana DNS bez osobnego mandatu. Oferta pilota brzmi: **kontrolowane publikowanie i autonomiczne utrzymanie jednej strony**, nie „pełna autonomia organizacji”.</p>
+<h2>3. Stany gotowości integracji</h2>
+<pre><code class="language-text">UNCONFIGURED
+EXTERNAL_ACTION_REQUIRED
+CONFIGURED
+SANDBOX_VERIFIED
+LIVE_CANARY
+PRODUCTION_READY
+SUSPENDED
+REVOKED</code></pre>
+<pre><code class="language-json">{
+  &quot;resource_id&quot;: &quot;mail:inbound:operations&quot;,
+  &quot;state&quot;: &quot;EXTERNAL_ACTION_REQUIRED&quot;,
+  &quot;capabilities&quot;: [&quot;mail.receive&quot;, &quot;mail.send&quot;],
+  &quot;owner&quot;: &quot;administrator-poczty&quot;,
+  &quot;blocker_code&quot;: &quot;MAIL_CREDENTIALS_MISSING&quot;,
+  &quot;required_evidence&quot;: [
+    &quot;vault_lease_id&quot;,
+    &quot;provider_account_id&quot;,
+    &quot;live_canary_result&quot;
+  ],
+  &quot;last_verified_at&quot;: null,
+  &quot;valid_until&quot;: null,
+  &quot;evidence_bundle_id&quot;: null
+}</code></pre>
+<p><code>CONFIGURED</code> nie oznacza <code>PRODUCTION_READY</code>. Capability i evidence wygasają. Brak ważnego dowodu oznacza fail-closed. Mock nie może ustawić <code>LIVE_CANARY</code>, a stan jednego connectora nie rozszerza praw innego.</p>
+<h2>4. Rejestr pakietów prac</h2>
+<table>
+<thead><tr><th>ID</th><th>Pakiet</th><th>Fala</th><th>Pilot</th></tr></thead>
+<tbody>
+<tr><td>REL-001</td><td>Kanoniczny pin Core</td><td>A</td><td>wymagany</td></tr>
+<tr><td>REL-002</td><td>Dry-run bez fałszywej eskalacji</td><td>A</td><td>wymagany</td></tr>
+<tr><td>REL-003</td><td>Wspólny wynik connectora</td><td>A</td><td>wymagany</td></tr>
+<tr><td>REL-004</td><td>Manifesty connectorów</td><td>A</td><td>wymagany dla ścieżki pilota</td></tr>
+<tr><td>REL-005</td><td>Lifecycle incydentów</td><td>A</td><td>wymagany</td></tr>
+<tr><td>AUTH-001</td><td>Jednorazowy grant mutacji</td><td>A/B</td><td>wymagany</td></tr>
+<tr><td>AUTH-002</td><td>Rejestr blockerów i capability</td><td>A</td><td>wymagany</td></tr>
+<tr><td>EVID-001</td><td>Evidence bundle</td><td>A</td><td>wymagany</td></tr>
+<tr><td>INF-001</td><td>Typowany limit Plesk</td><td>B</td><td>niewymagany dla istniejącego vhosta</td></tr>
+<tr><td>INF-002</td><td>DNS desired state</td><td>B/C</td><td>wymagany tylko przy cutoverze</td></tr>
+<tr><td>INF-003</td><td>Bezpieczny publish na vhost</td><td>A/B</td><td>wymagany</td></tr>
+<tr><td>MAIL-001</td><td>E-mail live</td><td>C</td><td>później</td></tr>
+<tr><td>CHAT-001</td><td>Publiczny chat/IdP</td><td>C</td><td>później</td></tr>
+<tr><td>VOICE-001</td><td>Telefonia</td><td>D</td><td>później</td></tr>
+<tr><td>LEGAL-001</td><td>Jurisdiction packs</td><td>E</td><td>później</td></tr>
+<tr><td>ESIGN-001</td><td>E-sign</td><td>E</td><td>później</td></tr>
+<tr><td>GOV-001</td><td>Graf sukcesji</td><td>E</td><td>później</td></tr>
+<tr><td>VENDOR-001</td><td>Vendor/marketplace</td><td>E</td><td>później</td></tr>
+</tbody></table>
+<h2>4.1. Stan realizacji — 2026-07-19</h2>
+<table>
+<thead><tr><th>ID</th><th>Stan</th><th>Dowód</th></tr></thead>
+<tbody>
+<tr><td>REL-001</td><td>zakończony dla komponentów Platformy</td><td><code>platform@46dd037</code>, <code>core@5631ce4</code>; source lock 8/8, czysty klon bez submodułów, Core 158/158, meta 43/43</td></tr>
+<tr><td>REL-002</td><td>zakończony</td><td><code>orchestrator@69e4aeb</code>; testy 79/79 oraz live dry-run bez ticketu eskalacyjnego</td></tr>
+<tr><td>REL-003</td><td>etap bazowy zakończony</td><td>odmowa publish Python ↔ JS: <code>contracts@cb270ab</code>, <code>connectors@4c990b3</code>, <code>urirun-connector-plesk@1f82dd2</code>, <code>platform@db6b09a</code>; pozostały partial/rollback i inne route'y</td></tr>
+<tr><td>REL-004</td><td>oczekuje</td><td>manifesty należy domknąć najpierw dla Plesk, DNS i verify</td></tr>
+<tr><td>REL-005</td><td>oczekuje</td><td>wymagane odtworzenie i dowód zamknięcia historycznego incydentu</td></tr>
+</tbody></table>
+<p>REL-001 wprowadził <code>platform/dependencies.lock.json</code> jako jedno źródło prawdy dla ośmiu niezależnych repozytoriów źródłowych. Submoduły, <code>.gitmodules</code> i gitlinki trybu <code>160000</code> zostały usunięte. <code>npm run dependencies:sync</code> tworzy w ignorowanym <code>components/*</code> zwykłe checkouty Git, a verifier sprawdza URL originu, dokładny commit, czystość drzewa i zgodność źródeł. Negatywne testy odrzucają <code>.gitmodules</code>, gitlink, inny remote i lokalny drift. Nowy klon z GitHub bez <code>--recurse-submodules</code> pobrał wszystkie źródła, odtworzył zależności i przeszedł AQL preflight na 17 kontraktach. Naprawiono też ścieżkę preflight tak, aby używała przypiętego <code>components/contracts</code>, a nie przypadkowego sąsiedniego checkoutu.</p>
+<p>Pełny <code>npm test</code> Platformy przeszedł w świeżym układzie umbrella po source bootstrapie: meta 43/43, runtime 69/69, contracts 10/10, testkit 146/146, Core 158/158 i connector LAN 3/3. Repozytoria receptur <code>docs</code>, <code>logo</code> i <code>www</code> pozostają jawnie niezależnymi sąsiadami umbrella; nie są zależnościami komponentowymi Platformy. Ich bootstrap wymaga nadal manifestu nadrzędnego, jeżeli pełny układ umbrella ma być odtwarzany jednym poleceniem.</p>
+<p>REL-002 dodał wspólny enum wyników wykonania. Krok wymagający zatwierdzenia w trybie dry-run zwraca teraz <code>SKIPPED_DRY_RUN</code>, nie uruchamia resolvera authority i nie tworzy eskalacji. Ten sam krok w trybie mutacji bez mandatu nadal zwraca <code>DENIED_AUTHORITY</code>. Bezpieczny test live planu publikacji <code>autonomicznosc.pl</code> przygotował 8 plików i zachował plan hash <code>8cec51cdbf70dcaa0c795f1b1f4e826bcdd7b62d60472435c795d3c47c794c23</code>; produkcyjny apply nie został wykonany.</p>
+<p>Bazowy etap REL-003 opublikował kanoniczny, domenowo neutralny JSON Schema <code>subactor.connector-result.v1</code> wraz z fixture odmowy authority. Bridge JS i connector Python zwracają te same pola wykonania, weryfikacji, dry-run, próby mutacji, liczników plików i bajtów, <code>plan_hash</code>, evidence oraz retry. Dla kompatybilności zachowano dotychczasowe pole <code>error</code>, ale nie jest ono już jedynym nośnikiem semantyki. Odmowa przed mutacją zawsze raportuje zera i <code>mutation_attempted: false</code>; <code>null</code> nie oznacza już „nie wykonano”. Testy: kontrakty 12/12, bridge 4/4, connector Python 57/57, Platform meta 41/41 i connector LAN 3/3.</p>
+<p>Do pełnego zamknięcia REL-003 pozostaje objęcie tym envelope wyników <code>capability_unavailable</code>, błędu częściowego i rollbacku oraz dodanie testów kontraktowych dla pozostałych mutacyjnych route'ów. Aktualna zmiana celowo rozwiązuje pierwotną rozbieżność odmowy publish Python ↔ JS bez deklarowania, że wszystkie connectory zostały już zmigrowane.</p>
+<h2>4.2. Autonomous Access Acquisition Loop — pierwszy pion</h2>
+<p>Zaimplementowano domenowo neutralny pion `human daje ALLOW → system zdobywa ACCESS → vault przechowuje SECRET → connector wykonuje ACTION → runtime tworzy EVIDENCE`:</p>
+<ul>
+<li><code>runtime@5614168</code> rozszerza Contract AQL o capability- i target-bound</li>
+</ul>
+<p><code>ALLOW ACCESS</code>, <code>ALLOW ACCESS_TARGET</code> oraz limit TTL credentiala. Delegacja nie może rozszerzyć lifecycle action, targetu ani TTL;</p>
+<ul>
+<li><code>contracts@a888af9</code> publikuje <code>AccessRequirement</code>, secret-free <code>AuthStatus</code>,</li>
+</ul>
+<p>pierwszy standing contract infrastruktury oraz jawnych kandydatów connectorów pochodzących z plannera/Digital Twin;</p>
+<ul>
+<li><code>orchestrator@f9cd6e2</code> dodaje Access Resolver: route discovery, existing</li>
+</ul>
+<p>handle, refresh, child delegation, acquisition, scope proof oraz osobne blockery AQL/consent/MFA/root credential;</p>
+<ul>
+<li><code>orchestrator@b9e6940</code> podłącza jego odczytową część do żywych <code>/routes</code>,</li>
+</ul>
+<p><code>auth/query/status</code>, <code>auth/query/scopes</code> i <code>auth/query/acquisition-methods</code>, bez stałej mapy providerów;</p>
+<ul>
+<li><code>runtime@95e7e71</code> kompiluje, weryfikuje i jednorazowo zużywa podpisane child</li>
+</ul>
+<p>grants dla acquire/refresh/delegate/rotate/revoke, używając istniejącego apply-grant HMAC i replay store;</p>
+<ul>
+<li><code>orchestrator@4268748</code> dodaje hash-chained append-only evidence outbox oraz</li>
+</ul>
+<p>opt-in command executor związany z dokładnym URI i hashem payloadu;</p>
+<ul>
+<li><code>urirun-connector-plesk@4db9c48</code> jest pierwszym connector-em referencyjnym</li>
+</ul>
+<p>z <code>auth/query/status</code>, <code>auth/query/scopes</code> i <code>auth/query/acquisition-methods</code> bez ujawniania sekretu;</p>
+<ul>
+<li><code>platform@75f0511</code> przypina aktualny runtime i contracts w source lock.</li>
+</ul>
+<p>Testy: runtime 74/74, Orchestrator 95/95, contracts 4/4, generator kontraktów 10/10, Plesk 80/80 oraz pełny <code>npm test</code> Platformy. Po restarcie żywy runtime urirun odkrył trzy trasy auth Plesk. Autoryzowane, odczytowe wywołanie <code>auth/query/acquisition-methods</code> zakończyło się powodzeniem i zwróciło secret-free strategię <code>bootstrap-api-key</code>. <code>auth/query/status</code> dotarło do connectora, lecz zakończyło się typowanym <code>plesk_https_required</code>, ponieważ aktualny endpoint środowiska jest HTTP. Nie wykonano bootstrapu ani mutacji.</p>
+<p>Odczytowa część Access Resolvera jest już podłączona do live <code>/routes</code> i tras auth. Próba wykonana przez publiczne API Orchestratora odnalazła Plesk, wywołała auth status, zapisała zdarzenia <code>route_discovery</code>, <code>auth_status</code> i <code>access_resolution</code>, po czym zachowała <code>plesk_https_required</code>. Nie wywołała bootstrapu. Evidence może być teraz zapisane do pliku JSONL <code>0600</code> z monotoniczną sekwencją i łańcuchem SHA-256. Próba live zapisała i ponownie zweryfikowała trzy rekordy.</p>
+<p>Command executor obsługuje bootstrap/refresh/delegate dopiero po weryfikacji i atomowym zużyciu podpisanego child grantu związanego z <code>plan_hash</code>, targetem, fingerprintem środowiska, URI, hashem payloadu, credential handles, TTL, budżetem i jednym wykonaniem. Testy potwierdzają odmowę replay oraz zmienionego payloadu bez wywołania <code>/run</code>. Nie wykonano komendy w środowisku live.</p>
+<p>Pozostaje wymusić ten grant także na natywnej granicy connectora/urirun i ograniczyć token node tak, aby bezpośrednie <code>/run</code> nie mogło ominąć executora. DNS, GitHub, e-mail, voice i e-sign wymagają kolejnych implementacji conformance. Do czasu scope proof brak credentiala nie może być raportowany jako automatycznie rozwiązany.</p>
+<p>E-mail do Foundera nie jest globalnym fallbackiem każdego błędu. Powiadomienie powstaje dopiero dla typowanego <code>AQL_ALLOW_REQUIRED</code>, native provider consent, MFA, braku root of trust, umowy zewnętrznej albo authority prawnej, po wyczerpaniu dozwolonych strategii automatycznych. Wiadomość nie może zawierać sekretu; przekazuje bezpieczne podsumowanie i korelację z ticketem.</p>
+<h1>Część I — naprawy lokalne</h1>
+<h2>5. REL-001 — kanoniczny pin Core</h2>
+<p>Historycznie <code>platform/test/platform.test.js</code> oczekiwał <code>36130b5</code>, podczas gdy źródło Core było już nowsze. Problem zamknięto przez kanoniczny source lock; nie przez ręczne osłabienie asercji.</p>
+<p>Realizacja:</p>
+<ol>
+<li>znaleźć piny w testach, konfiguracji, CI, obrazach i dokumentacji;</li>
+<li>zweryfikować repo, branch, autora, historię i czystość <code>a9ac816</code>;</li>
+<li>potwierdzić Core 158/158 oraz zgodność API z Platformą;</li>
+<li>wprowadzić <code>platform/dependencies.lock.json</code> jako SSOT;</li>
+<li>generować asercję meta z lockfile;</li>
+<li>blokować <code>.gitmodules</code>, gitlinki i drift checkout ↔ lockfile;</li>
+<li>wykonać pełne <code>npm test</code> i start z czystego checkoutu;</li>
+<li>commit/push dopiero przy zielonej bramce.</li>
+</ol>
+<p>Lockfile przechowuje repozytorium, pełny commit, verifiera, czas i URI evidence. Akceptacja: jeden pin, zielony czysty checkout, CI wykrywające drift i evidence wersji oraz środowiska.</p>
+<h2>6. REL-002 — rozdzielenie dry-run od authority</h2>
+<p>Wspólny outcome:</p>
+<pre><code class="language-text">PLANNED
+SKIPPED_DRY_RUN
+DENIED_AUTHORITY
+BLOCKED_CAPABILITY
+BLOCKED_BUDGET
+BLOCKED_JURISDICTION
+EXECUTED
+VERIFIED
+FAILED
+ROLLED_BACK</code></pre>
+<pre><code class="language-text">DRY_RUN           → SKIPPED_DRY_RUN, escalation=false
+capability missing→ BLOCKED_CAPABILITY, owner action
+authority missing → DENIED_AUTHORITY, approval may be requested
+apply succeeded   → EXECUTED
+verify passed     → VERIFIED</code></pre>
+<p>Zmiana obejmuje model domenowy, API, UI, alerty, SLA, raporty, unit/E2E i ewentualną migrację statystyk. Dry-run nie tworzy <code>PLF-506</code>/<code>SELFDEV-074</code>, ale realny apply bez grantu nadal kończy się <code>DENIED_AUTHORITY</code>.</p>
+<h2>7. REL-003 — schemat wyników connectorów</h2>
+<p>Docelowy <code>subactor.connector-result.v1</code> zawiera <code>ok</code>, <code>executed</code>, <code>verified</code>, <code>dry_run</code>, <code>reason_code</code>, <code>mutation_attempted</code>, liczniki planowane/wykonane, <code>plan_hash</code>, evidence ID i <code>retryable</code>.</p>
+<p>Reguły:</p>
+<ul>
+<li>licznik jest zawsze liczbą;</li>
+<li><code>null</code> oznacza wyłącznie „nieznane”;</li>
+<li>odmowa ma <code>executed:false</code>, <code>mutation_attempted:false</code> i liczniki wykonania 0;</li>
+<li>Python i JS walidują jedno JSON Schema;</li>
+<li>bridge nie zmienia semantyki;</li>
+<li>testy obejmują dry-run, authority deny, capability deny, sukces, partial fail</li>
+</ul>
+<p>i rollback;</p>
+<ul>
+<li>klient starszej wersji dostaje jawny błąd wersji.</li>
+</ul>
+<h2>8. REL-004 — manifesty connectorów</h2>
+<p>Pierwsza kolejność: Plesk, HTTP/TLS verify, DNS, identity/chat, e-mail, voice, e-sign, marketplace. Manifest opisuje właściciela, runtime, declared routes, capabilities, mutacje i ich bramki, input/output schema, binding oraz sekrety z vaultu.</p>
+<p>Scanner ma raportować brakujące pola, generować szablon, sprawdzać route ↔ capability ↔ mutation policy i blokować release connectora używanego w profilu produkcyjnym. Connector eksperymentalny nie blokuje całej platformy.</p>
+<h2>9. REL-005 — incydenty</h2>
+<p>Każdy incydent zawiera severity, timeline, detector, affected capabilities, root cause, containment, resolution, zamykającego, evidence i recurrence test.</p>
+<p>Należy odtworzyć historyczny critical, potwierdzić jego zamknięcie, dodać test regresji, rozdzielić liczniki active/history, ustalić SLO i runbook zawieszenia grantów po incydencie bezpieczeństwa.</p>
+<h1>Część II — authority i evidence</h1>
+<h2>10. AUTH-001 — podpisany grant</h2>
+<p>Grant zawiera: ID, issuer, subject, capability, target, <code>plan_hash</code>, limit kosztu, <code>valid_from</code>, <code>valid_until</code>, one-time nonce, wymóg rollbacku, evidence policy i podpis.</p>
+<p>Walidator sprawdza podpis, konstytucyjne uprawnienie issuera, subject, target, hash, czas, nonce, kill switch, AQL, budżet, jurisdiction pack, rollback i gotowość zależnych connectorów. Nonce jest atomowo rezerwowany przed mutacją. Zmiana planu unieważnia grant. Grant nie zawiera sekretów i nie rozszerza się automatycznie.</p>
+<p>Negatywne testy: expiry, zły podpis/aktor/target/hash, budget, replay, kill switch, brak rollbacku, brak jurisdiction pack i zmiana planu po zatwierdzeniu.</p>
+<h2>11. AUTH-002 — rejestr blockerów</h2>
+<pre><code class="language-yaml">id: BLK-PLESK-DOMAIN-LIMIT
+priority: P0
+scope: hosting
+state: EXTERNAL_ACTION_REQUIRED
+owner_role: plesk-account-owner
+blocks:
+  - hosting.domain.create
+does_not_block:
+  - hosting.files.prepare
+  - hosting.publish.existing-domain
+required_evidence:
+  - type: provider-capability-export
+  - type: sandbox-create-delete-test
+closure_conditions:
+  - domain_limit_known
+  - free_slot_confirmed
+  - permission_confirmed
+validity:
+  recheck_after_days: 30</code></pre>
+<p>Rejestr wspiera ownerów, SLA, zależności, external/local, evidence, ważność i historię. Problem blokuje tylko jawnie wskazane capability.</p>
+<h2>12. EVID-001 — standard evidence bundle</h2>
+<pre><code class="language-text">manifest.json
+plan.json
+plan.sha256
+capability-snapshot.json
+authority-grant.json
+preflight.json
+apply-result.json
+verify-result.json
+rollback-plan.json
+rollback-result.json
+logs.ndjson
+artifacts/before/
+artifacts/after/
+artifacts/screenshots/
+checksums.txt</code></pre>
+<p>Bundle nie zawiera sekretów, ma stabilne ID, UTC, wersje connector/runtime, hash każdego artefaktu i korelację z ticketem, planem, grantem oraz incydentem. <code>evidence verify</code> działa offline, a storage jest append-only/WORM lub podpisany.</p>
+<h1>Część III — hosting i DNS</h1>
+<h2>13. INF-001 — limit domen Plesk</h2>
+<p>Model rozróżnia:</p>
+<pre><code class="language-text">known(used, limit)
+unlimited(used)
+unknown(reason)
+forbidden(reason)</code></pre>
+<p>Tylko <code>known</code> z wolnym slotem albo <code>unlimited</code> pozwala na create. <code>unknown</code> i <code>forbidden</code> zawsze odmawiają. Capability pochodzi z autorytatywnego źródła, ma krótki TTL i evidence surowej odpowiedzi po redakcji. Test create/delete wymaga sandboxu i osobnej zgody. Pilot korzysta z istniejącego vhosta.</p>
+<h2>14. INF-002 — DNS desired state</h2>
+<p>Każda domena ma ownera strefy, providera, current/desired origin, rekordy, TTL, snapshot rollbacku, expected SAN i fingerprint.</p>
+<pre><code class="language-text">discover → diff → plan → snapshot → preflight → grant → apply
+→ authoritative/multi-resolver verify → TLS → fingerprint
+→ stabilization → rollback albo utrwalenie</code></pre>
+<p>Standardowy grant nie zmienia MX, apex ani NS. Zmiana strefy jest serializowana, a drift od dry-run wymusza nowy plan i grant.</p>
+<h2>15. INF-003 — publish na istniejącym vhoście</h2>
+<ol>
+<li>manifest stanu przed;</li>
+<li>diff, skan sekretów i <code>plan_hash</code>;</li>
+<li>backup plików zmienianych/usuwanych;</li>
+<li>grant na plan i target;</li>
+<li>upload do staging;</li>
+<li>checksumy;</li>
+<li>atomowy switch lub kontrolowane rename;</li>
+<li>publiczny HTTPS/fingerprint;</li>
+<li>rollback przy błędzie;</li>
+<li>evidence bundle.</li>
+</ol>
+<p>Zabronione: upload bez backupu, poza katalogiem, bez grantu, po drift albo bez publicznego verify.</p>
+<h1>Część IV — kanały</h1>
+<h2>16. MAIL-001 — e-mail live</h2>
+<p>Administrator tworzy dedykowane konto, wybiera IMAP/SMTP lub OAuth, przekazuje sekret przez one-time vault intake i ustala SPF/DKIM/DMARC, allowlisty, retencję, limity oraz rotację.</p>
+<p>Connector korzysta z krótkotrwałego lease, oddziela receive/send, nie ufa <code>From</code>, używa wyników zaufanego systemu pocztowego i kwarantannuje spoof. Idempotencja obejmuje mailbox, Message-ID, body hash i attachment hashes.</p>
+<p>Canary: realna wiadomość → jeden ticket; redelivery → zero duplikatu; spoof → kwarantanna; odpowiedź do allowlisty; rotacja; skan logów.</p>
+<h2>17. VOICE-001 — telefonia</h2>
+<p>Domyślnie outbound, recording i transcription są wyłączone, allowlista pusta, limity niskie, a podpis webhooka obowiązkowy. <code>voice.call.prepare</code> i <code>voice.call.start</code> są osobnymi capability. Start wymaga allowlisty, budżetu, grantu i idempotency key. Callback wymaga podpisu i ochrony replay. Live canary obejmuje tylko zatwierdzony numer testowy.</p>
+<h2>18. CHAT-001 — publiczny chat</h2>
+<p>Publiczny endpoint używa HTTPS i OIDC Authorization Code + PKCE. Sesja jest <code>HttpOnly</code>, <code>Secure</code>, ma właściwy <code>SameSite</code>, krótki idle timeout i rotację ID.</p>
+<pre><code class="language-text">IdP principal → internal principal → AQL contract → digital twin</code></pre>
+<p>Subject pochodzi z sesji, nie z parametru klienta. Testy obejmują dwóch użytkowników, cross-user/admin deny, expiry, revoke, CSRF, rate limit i skan tokenów. Token administracyjny nie jest wystawiany publicznie.</p>
+<h1>Część V — prawo i organizacja</h1>
+<h2>19. LEGAL-001 — jurisdiction packs</h2>
+<p>Kod wybiera dokładnie dopasowany, zatwierdzony i niewygasły pakiet; nie tworzy reguł prawnych z LLM. Pack określa jurysdykcję, relację, status kandydata, kompensację, czas, prywatność, zakazane pytania, podpis, role, wersje szablonów, źródła, reviewerów i ważność.</p>
+<pre><code class="language-text">brak exact match       → LEGAL_PACK_MISSING
+pakiet wygasł          → LEGAL_PACK_EXPIRED
+szablon niezatwierdzony→ TEMPLATE_NOT_APPROVED
+zły podpisujący        → SIGNATORY_NOT_AUTHORIZED</code></pre>
+<p>Draft ma watermark <code>NOT FOR SIGNATURE</code>. Nie można wysłać dokumentu z pustymi polami prawnymi ani uruchomić pracy przed kompletnym onboardingiem.</p>
+<h2>20. ESIGN-001 — draft a podpis</h2>
+<pre><code class="language-text">DRAFT → LEGAL_VALIDATED → READY_FOR_SIGNATURE → SENT → VIEWED → SIGNED
+DECLINED | EXPIRED | VOIDED | ARCHIVED</code></pre>
+<p>LLM tworzy tylko <code>DRAFT</code>. Wysyłka wymaga packa, zatwierdzonego szablonu, kompletnych pól, uprawnionego podpisującego, polityki danych i authority. Sandbox/production są rozdzielone. Webhook jest podpisany i idempotentny, a hash dokumentu wykrywa zmianę po wysłaniu.</p>
+<h2>21. GOV-001 — sukcesja</h2>
+<p>YAML nie tworzy mandatu. Organizacja wskazuje osoby, podpisuje umocowania, nadaje tożsamości, definiuje quorum, aktywację, scope i expiry. Aktywacja daje czasowy grant; jedna osoba nie zatwierdza własnej sukcesji; powrót primary unieważnia emergency grants. Współdzielone credentiale są zabronione.</p>
+<p>Test: founder → deputy → quorum → external operator → restoration primary → pełne cofnięcie i audit.</p>
+<h2>22. VENDOR-001 — vendor i marketplace</h2>
+<p>Przed work order sprawdzane są: approved vendor, MSA/DPA, cennik, budżet, authority, zakres danych, odbiór, anulowanie i secondary.</p>
+<pre><code class="language-text">quote → normalize → policy/budget → grant → work order → minimal access
+→ evidence → accept/reject → invoice match → revoke access</code></pre>
+<p>Konto marketplace nie oznacza prawa sprzedaży w każdej jurysdykcji.</p>
+<h1>Część VI — test live E2E</h1>
+<h2>23. Warunki wejścia</h2>
+<p>Zielony release z czystego checkoutu, manifesty, capability snapshot, granty, budżet, DNS/TLS użytego targetu, konta, retencja, wymagany jurisdiction pack, rollback oraz owner evidence.</p>
+<h2>24. Scenariusz</h2>
+<ol>
+<li>ograniczony cel, <code>plan.json</code>, <code>plan.sha256</code>;</li>
+<li>dry-run → <code>SKIPPED_DRY_RUN</code>, bez mutacji i eskalacji;</li>
+<li>preflight capability/authority/budget/jurisdiction/lease/rollback/version;</li>
+<li>istniejący vhost;</li>
+<li>staging, checksum, switch, HTTPS i fingerprint;</li>
+<li>dwóch użytkowników chatu i cross-user deny;</li>
+<li>e-mail: allowlist, idempotencja, spoof quarantine;</li>
+<li>voice: tylko numer testowy, podpis webhooka, koszt w limicie;</li>
+<li>e-sign sandbox z zatwierdzonym szablonem;</li>
+<li>sandboxowy ticket bez realnej pracy przed onboardingiem;</li>
+<li>wspólny correlation ID i evidence;</li>
+<li>rzeczywisty rollback, revoke grantów, lease i dostępu.</li>
+</ol>
+<p>Status bez kompletnego dowodu nie zalicza testu.</p>
+<h1>Część VII — bramki release</h1>
+<h2>25. G0–G7</h2>
+<table>
+<thead><tr><th>Gate</th><th>Warunek</th></tr></thead>
+<tbody>
+<tr><td>G0 Source</td><td>czysty checkout, source lock=origin+commit, brak gitlinków, odtwarzalne deps, SBOM</td></tr>
+<tr><td>G1 Tests</td><td>unit, integration, contract, TestQL, negative auth, replay, rollback, redaction</td></tr>
+<tr><td>G2 Capability</td><td>wymagane capability ≥ sandbox, świeże evidence, brak unknown dla mutacji</td></tr>
+<tr><td>G3 Authority</td><td>issuer/hash/target/budget/nonce/kill switch poprawne</td></tr>
+<tr><td>G4 Security</td><td>vault, redakcja, retencja, least privilege, isolation, podpis webhooka</td></tr>
+<tr><td>G5 Sandbox</td><td>pełny flow, retry, idempotencja, timeout, rollback</td></tr>
+<tr><td>G6 Canary</td><td>minimalny target/budżet, allowlista, monitoring, owner i rollback</td></tr>
+<tr><td>G7 Production</td><td>canary/evidence zaakceptowane, runbook, alerty, rotacja, owner+zastępca</td></tr>
+</tbody></table>
+<h1>Część VIII — podział pracy</h1>
+<h2>26. Zadania delegowalne stażyście</h2>
+<p>REL-001–005, AUTH-002, EVID-001, INF-001/003, negatywne testy, runbooki, dashboard readiness, raport release i sandbox E2E.</p>
+<p>Stażysta nie akceptuje regulaminów, nie zakłada kont bez mandatu, nie przechowuje produkcyjnych sekretów, nie zatwierdza własnego kodu, nie definiuje prawa, nie aktywuje apply i nie kontaktuje kandydatów jako firma.</p>
+<h2>27. Zadania ownera/tech leada</h2>
+<p>Zakres pilota, architektura grant/evidence, review, właściciele integracji, konta/umowy/vault/budżety, prawnik i packi, mandaty, canary/rollback, akceptacja evidence oraz decyzja o wyłączonych capability.</p>
+<h1>Część IX — fale</h1>
+<h2>28. Fala A</h2>
+<p>REL-001–005, AUTH-001/002, EVID-001, lokalny/staging publish i rollback. Rezultat: platforma jest gotowa przyjąć zewnętrzne capability.</p>
+<h2>29. Fala B</h2>
+<p>Istniejący vhost, pojedynczy grant, HTTPS verify, monitoring i rollback. Rezultat: pierwszy płatny pilot.</p>
+<h2>30. Fala C</h2>
+<p>DNS/TLS chatu, IdP, dwóch użytkowników, realny e-mail, cross-user testy i rotacja credentiali.</p>
+<h2>31. Fala D</h2>
+<p>Telefonia dopiero po decyzji prawnej, numerze, allowliście, webhooku, budżecie i grant engine.</p>
+<h2>32. Fala E</h2>
+<p>E-sign, rekrutacja i outsourcing dopiero po packach, szablonach, mandatach, umowach, sandboxie i politykach danych.</p>
+<h1>Część X — DoR, DoD i go/no-go</h1>
+<h2>33. Definition of Ready</h2>
+<p>Jednoznaczny cel/target, odwracalność, klasyfikacja danych, ownerzy, capability, authority, budżet, rollback, verify i brak nierozpoznanego wymagania prawnego.</p>
+<h2>34. Definition of Done</h2>
+<p>Review drugiej osoby, pozytywne i negatywne testy, zgodne schematy, zero sekretów, wiarygodny dry-run, właściwy grant, realny verify, wykonany rollback, kompletny evidence bundle, sprawdzony runbook, akceptacja ownera i data ponownego sprawdzenia capability.</p>
+<h2>35. GO</h2>
+<p>Znana zmiana i target, stabilny hash, świeża capability, jednorazowy grant, budżet, wymagany pack, vault, zgodny connector, backup, publiczny verify, rollback, redakcja, owner incydentu i evidence.</p>
+<h2>36. NO-GO</h2>
+<ul>
+<li>unknown limit przy create domain;</li>
+<li>brak DNS source of truth;</li>
+<li>zły/wygasły/użyty grant, hash lub target;</li>
+<li>kill switch;</li>
+<li>wygasła capability;</li>
+<li>brak rollbacku lub kontraktu connectora;</li>
+<li>sekret w logach;</li>
+<li>brak wymaganego jurisdiction pack;</li>
+<li>nieudany publiczny verify;</li>
+<li>koszt ponad limit;</li>
+<li>niepodpisany webhook;</li>
+<li>drift od dry-run.</li>
+</ul>
+<h2>37. Oczekiwany rezultat</h2>
+<p>Platforma wykonuje realne operacje tylko tam, gdzie istnieją wszystkie wymagane fakty zewnętrzne, a poza tym pozostaje fail-closed. Pilot może ruszyć przed telefonią, rekrutacją, e-sign i marketplace, bez udawania pełnej autonomii i bez samodzielnego rozszerzania praw systemu.</p>
+</main>
+</body>
+</html>

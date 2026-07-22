@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Roadmapa implementacji autonomii — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Roadmapa implementacji autonomii</h1>
+<p><strong>Status:</strong> plan wdrożenia (Fazy 0–8 + kolejność PR). <strong>Evidence CURRENT/TARGET:</strong> <a href="../architecture/autonomy-implementation-status.html"><code>../architecture/autonomy-implementation-status.md</code></a> <strong>Rekomendacja kanoniczna:</strong> <a href="../architecture/autonomy-recommended-solution.html"><code>../architecture/autonomy-recommended-solution.md</code></a> <strong>ADR:</strong> <a href="../architecture/adr/README.html"><code>../architecture/adr/README.md</code></a> (<strong>001–007 Accepted</strong>) <strong>Status ops:</strong> <a href="../architecture/autonomy-ops-status-and-open-questions.html"><code>../architecture/autonomy-ops-status-and-open-questions.md</code></a> <strong>Intent/fallbacki:</strong> <a href="../architecture/intent-orchestration-and-fallbacks.html"><code>../architecture/intent-orchestration-and-fallbacks.md</code></a> <strong>Publish docs:</strong> <a href="./docs-subactor-com-publish.html"><code>docs-subactor-com-publish.md</code></a> <strong>EQL prototype 0.2:</strong> <a href="https://github.com/subactor/eql/blob/main/docs/SUBACTOR_KORU_INTEGRATION.md"><code>subactor/eql</code> integration note</a> — typed SemanticPatch + determinism gates before apply grant (mock CI; no live OpenRouter in CI).</p>
+<p><strong>Baseline diagnostyczny:</strong> docs commit <code>5894906</code> — nie mieszać z refaktorem orchestratora.</p>
+<p><strong>Nearest milestone:</strong> safe autonomous mutation w <strong>mocked</strong> environment — nie production cutover DNS.</p>
+<p>Dwa strumienie (równolegle, E2E dopiero po obu):</p>
+<ul>
+<li><strong>A</strong> — platforma (packs, policy, grants, verify DoD)</li>
+<li><strong>B</strong> — infrastruktura docs.subactor.com (DNS, TLS, SFTP, vault, releases)</li>
+</ul>
+<hr />
+<h2>Faza 0 — dokumentacja i ADR</h2>
+<ul>
+<li>Zachować <code>5894906</code> jako snapshot diagnostyczny.</li>
+<li>ADR-001–007 <strong>Accepted</strong> (grant crypto w ADR-003; rollback_failed / Pages caveat w ADR-005; lease/revoke w ADR-006).</li>
+<li>Evidence PR1–PR4: <a href="../architecture/autonomy-implementation-status.html"><code>../architecture/autonomy-implementation-status.md</code></a>.</li>
+<li>Uwaga PR1: <strong>rozstrzygnięte</strong> — <code>platform/components/*</code> = submoduły (pin deploy);</li>
+</ul>
+<p>kanoniczny kod w <code>subactor/&lt;name&gt;</code>; drift: <code>platform/scripts/check-component-drift.mjs</code> (<a href="../architecture/canonical-component-paths.html"><code>../architecture/canonical-component-paths.md</code></a>, ADR-007).</p>
+<h2>Faza 1 — Intent Pack Registry</h2>
+<ul>
+<li>Schemat packa w <code>platform/config/intent-packs/</code>.</li>
+<li>Pack <strong>bez</strong> <code>ALLOW</code>; tylko <code>required_capabilities</code> + CI ⊆ AQL.</li>
+<li>Wspólny loader (control, agents, LLM catalog, ticket generator, recipe validator).</li>
+<li>Migracja docs/www bez big-bang; dual-run legacy vs registry.</li>
+<li><strong>Unit 2–3 (verified / partial):</strong> frazy docs/www SSOT w packach; control <strong>pack-first</strong>;</li>
+</ul>
+<p><code>agents/nlp-uri-phrases.yaml</code> generowany; LLM fields sync z <code>situation_schema</code>; step-catalog annotated + <code>sync-intent-pack-derived.mjs --check</code>. Dual-run do PR10. Planfile imports <strong>nie</strong> przepisywane automatycznie (<strong>PR3 = partial</strong>).</p>
+<h2>Faza 2 — Recipe Policy Engine</h2>
+<ul>
+<li>Pola: <code>on_fail</code>, <code>depends_on</code> / <code>after</code>, <code>timeout_ms</code>, <code>retry</code>, <code>idempotency_key</code>, <code>compensation_step</code>.</li>
+<li>Domyślnie legacy <code>halt</code>; dopiero później <code>try_in_order</code>.</li>
+<li><strong>Unit 4 (partial / hardening):</strong> policy core w <code>@subactor/orchestrator</code> — <strong>done</strong>.</li>
+</ul>
+<p>Retry tylko dla kroków idempotent/query (enforce). <code>on_fail:ticket</code> bez stub-success. <code>on_fail:rollback</code> → <code>rolled_back</code> / <code>rollback_failed</code> (PR7). Compensation/<code>try_in_order</code> → PR7+/later.</p>
+<h2>Faza 3 — Apply grants (split)</h2>
+<ul>
+<li><strong>PR5a</strong> — immutable manifest + canonical JSON + <code>plan_hash</code> (no free re-scan) — <strong>done</strong></li>
+</ul>
+<p>(<code>urirun-connector-plesk</code> + bridge <code>plesk-httpdocs-sync</code>; deny <code>plan_hash_mismatch</code>).</p>
+<ul>
+<li><strong>PR5b</strong> — signed apply grant per ADR-003 (HMAC, issuer control, fail-closed) — <strong>done</strong>.</li>
+<li><strong>PR5c</strong> — <code>jti</code> replay store — <strong>done</strong> (consume on mutate; <code>APPLY_GRANT_JTI_STORE</code> optional).</li>
+<li>Dual kill switch: <code>AUTONOMY_MUTATIONS_ENABLED</code> + <code>PLESK_SYNC_APPLY</code>.</li>
+<li>Evidence: <a href="../architecture/autonomy-implementation-status.html"><code>../architecture/autonomy-implementation-status.md</code></a>.</li>
+</ul>
+<h2>Faza 4 — Connector / SFTP</h2>
+<ul>
+<li><strong>PR6 done:</strong> Paramiko w obrazie urirun-node; capability readiness w doctor;</li>
+</ul>
+<p>timeouty 15/120/180; błędy strukturalne; FTP fallback tylko z <code>PLESK_SYNC_ALLOW_FTP_FALLBACK=1</code>; brak SFTP → <code>production_publish_ready=false</code>.</p>
+<h2>Faza 5 — Release deploy + rollback</h2>
+<ul>
+<li><code>releases/</code> + <code>current</code>/<code>previous</code>; <code>release-upload</code> / <code>activate</code> / <code>rollback</code> — <strong>PR7 done</strong>.</li>
+</ul>
+<p>Strategy: <code>PLESK_RELEASE_ACTIVATION=auto|symlink|pointer</code> (Plesk docroot API not assumed). Orchestrator <code>on_fail:rollback</code> → <code>release-rollback</code>; stage <code>rolled_back</code> / <code>rollback_failed</code>.</p>
+<h2>Faza 6 — Vault</h2>
+<ul>
+<li>Ownership wg ADR-006; brak credential → <code>needs_human</code>.</li>
+</ul>
+<h2>Faza 7 — Migracja docs.subactor.com → Plesk</h2>
+<ul>
+<li>Desired DNS w repo (<code>docs/deployment/dns-desired-state.json</code>); vhost; SFTP; origin deploy z <code>__subactor_release.json</code>; <strong>PR8 verify ladder done</strong> (mocked + origin/<code>--resolve</code>); cutover DNS = <strong>PR9</strong>; TLS; public verify; auto-rollback.</li>
+<li>Staging recommendation: <code>docs-stage.subactor.com</code> (infra optional — Host header / <code>--resolve</code> works without it).</li>
+<li>Pages ≠ healthy content last_known_good (ADR-002/005).</li>
+</ul>
+<h2>Faza 8 — Lifecycle stanów</h2>
+<ul>
+<li>Pełna maszyna stanów planu; odpowiedź NL ze statusem bogatszym niż <code>ok</code>.</li>
+<li><strong>PR8:</strong> <code>applied_unverified</code> when verify enabled and fingerprint/DNS/TLS fail (≠ <code>completed</code>).</li>
+</ul>
+<p>Szczegóły każdej fazy: dokument rekomendacji §3–§11.</p>
+<hr />
+<h2>Kolejność PR {#kolejność-pr}</h2>
+<table>
+<thead><tr><th>PR</th><th>Zakres</th></tr></thead>
+<tbody>
+<tr><td>--</td><td>---</td></tr>
+<tr><td>0</td><td>Commit <code>5894906</code>, ADR-y i stan początkowy — <strong>ADRs Accepted</strong></td></tr>
+<tr><td>1</td><td>Kanoniczne ścieżki + drift gate — <strong>verified</strong></td></tr>
+<tr><td>2</td><td>Intent pack schema/registry — <strong>verified</strong> (dual-run)</td></tr>
+<tr><td>3</td><td>Phrase/LLM/step dedupe onto packs — <strong>partial</strong> (Planfile still separate)</td></tr>
+<tr><td>4</td><td>Recipe policy core — <strong>partial</strong> (ticket hardening; rollback wired in PR7)</td></tr>
+<tr><td>5a</td><td>Immutable manifest + plan_hash binding — <strong>done</strong></td></tr>
+<tr><td>5b</td><td>Signed apply grants (ADR-003) — <strong>done</strong></td></tr>
+<tr><td>5c</td><td>Grant replay (<code>jti</code>) — <strong>done</strong></td></tr>
+<tr><td>6</td><td>Paramiko/SFTP, capability readiness i strukturalne błędy — <strong>done</strong></td></tr>
+<tr><td>7</td><td>Release upload, activation i rollback — <strong>done</strong></td></tr>
+<tr><td>8</td><td>DNS/TLS preflight oraz public content fingerprint verify — <strong>done</strong></td></tr>
+<tr><td>9</td><td>Migracja <code>docs.subactor.com</code> z Pages do Pleska — <strong>prep / blocked</strong> (G1 addon+SFTP, G2 cert, G6 HITL; <strong>no DNS flip</strong>)</td></tr>
+<tr><td>10</td><td>Usunięcie legacy resolverów — <strong>started</strong> (<code>INTENT_PACK_DUAL_RUN</code> shadow/off; cold fallbacks retained)</td></tr>
+</tbody></table>
+<p>Każdy PR odwracalny; kompatybilność ze starymi recipes do końca migracji.</p>
+<p><strong>Uwaga projektowa:</strong> w tym repo docs shipping = commit (+ push), bez otwierania GitHub PR — tabela „PR” oznacza <strong>jednostki zmian implementacyjnych</strong> w monorepo Subactor.</p>
+<hr />
+<h2>Macierz testów (skrót)</h2>
+<p>Pełna lista: rekomendacja §12. Evidence: <a href="../architecture/autonomy-implementation-status.html"><code>../architecture/autonomy-implementation-status.md</code></a>.</p>
+<h2>Werdykt</h2>
+<p>Cztery fundamenty: intent pack SSOT · policy engine · connector (transport+rollback) · verify obowiązkowy. Reprezentatywny sukces produkcyjny: autonomiczny release docs na Plesk — <strong>po</strong> PR9 cutover. Najbliższy kamień: odblokować <strong>PR9 G1</strong> (addon docs + SFTP/paramiko + <code>__subactor_release.json</code> na origin); DNS cutover tylko przy G0–G6 green. Równolegle <strong>PR10</strong> dual-run shadow/off — <a href="../deployment/PR10-legacy-resolver-cleanup.html"><code>PR10-legacy-resolver-cleanup.md</code></a>.</p>
+</main>
+</body>
+</html>

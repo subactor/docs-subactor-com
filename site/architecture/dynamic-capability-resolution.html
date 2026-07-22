@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dynamiczne rozwiązywanie capability — specyfika projektu i mapa DSL — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Dynamiczne rozwiązywanie capability — specyfika projektu i mapa DSL</h1>
+<p><strong>Data:</strong> 2026-07-18 <strong>Cel dokumentu:</strong> pokazać, jak <code>subactor ask &quot;&lt;NL&gt;&quot;</code> dochodzi od zdania do realnej operacji Plesk, <strong>gdzie siedzi hardkod per-domena</strong>, a gdzie mechanika jest już generyczna — żeby publish (i podobne operacje) działał dynamicznie na dynamicznych danych, bez pisania recepty na każdą domenę. Zawiera wskazówki „gdzie szukać podobnych rozwiązań&quot;. <strong>Powiązane:</strong> <a href="./autonomous-anomaly-loop-roadmap.html"><code>autonomous-anomaly-loop-roadmap.md</code></a>, <a href="./intent-orchestration-and-fallbacks.html"><code>intent-orchestration-and-fallbacks.md</code></a>, <a href="./subactor-koru-development-bridge.html"><code>subactor-koru-development-bridge.md</code></a></p>
+<hr />
+<h2>0. Obserwacja, która uruchomiła ten dokument</h2>
+<p>Trzy realne domeny, trzy różne wyniki <code>subactor ask</code>:</p>
+<table>
+<thead><tr><th>Zapytanie</th><th>Wynik</th><th>Przyczyna</th></tr></thead>
+<tbody>
+<tr><td>„zsynchronizuj dokumentację do plesk httpdocs dla <strong>docs</strong>.subactor.com&quot;</td><td>✓ <code>resolved</code> → dry-run 62 pliki</td><td>ma resolver parafraz</td></tr>
+<tr><td>„opublikuj folder logo pod <strong>logo</strong>.subactor.com <strong>w</strong> plesk&quot;</td><td>✗ <code>capability_unavailable</code></td><td>fraza nie pasuje (<code>w</code>≠<code>na</code>)</td></tr>
+<tr><td>„sync logo to logo.subactor.com&quot; (dokładna zarejestrowana fraza)</td><td>✓ <code>preflight_passed</code></td><td>dosłowne dopasowanie</td></tr>
+<tr><td>„opublikuj stronę <strong>identity</strong> pod identity.subactor.com&quot;</td><td>✗ <code>capability_unavailable</code></td><td>brak jakiegokolwiek artefaktu</td></tr>
+</tbody></table>
+<p><strong>Wniosek kluczowy:</strong> to nie jest brak capability. Warstwa wykonawcza (URI Plesk, docroot, sync) jest <strong>w pełni generyczna</strong>. Blokada siedzi wyłącznie w <strong>warstwie rozpoznania intentu</strong> — kruchym, dosłownym dopasowaniu fraz i imperatywnym <code>if/else</code> per-domena. Logo działa dokładną frazą, a pada parafrazą „w plesk&quot; vs „na plesk&quot;.</p>
+<hr />
+<h2>1. Pipeline i katalog DSL (co jest dynamiczne, co statyczne)</h2>
+<p>Rdzeń: <code>NL → intent → plan (AQL→OQL) → deploy (urirun) → verify → NL</code> Orkiestracja: <code>orchestrator/src/pipeline.mjs</code> (etapy <code>resolvePlan → aql → oql → dispatchUrirun</code>).</p>
+<table>
+<thead><tr><th>#</th><th>DSL / mechanizm</th><th>Rozszerzenie / lokalizacja parsera</th><th>Rola w pipeline</th><th>Parametryzacja</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>AQL</strong> (Autonomy Query Language)</td><td><code>.pl.aql</code> → <code>runtime/src/aql-runtime.mjs:23</code></td><td>Tablica decyzyjna: <code>WEJŚCIE</code> (typy) + <code>DECYZJA/GDY/WTEDY/MODUŁY</code> → wariant + kroki planu. Auth SSOT etapu plan.</td><td><strong>Dynamiczna</strong> — typed inputs + warunki <code>GDY</code> nad kontekstem sytuacji</td></tr>
+<tr><td>2</td><td><strong>OQL</strong> (Operation Query Language)</td><td><code>.oql</code> → emiter <code>runtime/src/compiler.mjs:13</code>, resolver <code>orchestrator/src/resolve-plan.mjs:46</code></td><td>Konkretny plan kroków <code>STEP id op target WITH k=v EXPECT ... SAVE</code>. Między AQL a urirun.</td><td><strong>Dynamiczna</strong> — <code>WITH</code> + interpolacja <code>$path</code>/<code>${path}</code> (<code>renderValue</code>)</td></tr>
+<tr><td>3</td><td><strong>Intent packs</strong></td><td><code>platform/config/intent-packs/*.v1.json</code> → loader <code>registry.mjs:44</code></td><td>NL → kanoniczny URI; wiąże <code>aql_model</code> + <code>recipe</code> + <code>step_module</code>. <code>situation_schema</code> + <code>defaults</code>. <code>llm_policy.may_generate_uri=false</code> (LLM <strong>nie</strong> wymyśla URI).</td><td><strong>Dynamiczny schema</strong> (sloty) — ale <em>frazy</em> i <code>defaults.domain</code> są statyczne per plik</td></tr>
+<tr><td>4</td><td><strong>nlp-uri-phrases</strong></td><td><code>agents/nlp-uri-phrases.yaml</code> (GENEROWANY)</td><td>Mapa <code>match[]</code> → <code>uri</code> + <code>payload</code>.</td><td><strong>Statyczny</strong> — payload zapieczony per target</td></tr>
+<tr><td>5</td><td><strong>URI processes</strong></td><td><code>proc://</code>, <code>plesk://</code> → dispatcher <code>orchestrator/src/urirun-dispatch.mjs:11</code>; recepty <code>*.urirun.json</code></td><td>Adresowalna warstwa wykonawcza (JAK). <code>plesk://{host}/site/command/sync</code>.</td><td><strong>URI template dynamiczny</strong>; recepty <code>.urirun.json</code> <strong>statyczne</strong> (literalny host/domain/source_dir)</td></tr>
+<tr><td>6</td><td><strong>step-catalog</strong></td><td><code>platform/config/step-catalog.json</code></td><td>Moduł AQL (<code>create_*_httpdocs_sync_ticket</code>) → kroki urirun.</td><td><strong>Częściowo dynamiczny</strong> — krok www używa już <code>$situation.source_dir/host/domain</code></td></tr>
+<tr><td>7</td><td><strong>capability manifest</strong></td><td><code>platform/config/connector-capabilities/*.capability.yaml</code></td><td>Katalog: pack capability id ↔ URI template + typy params.</td><td><strong>Dynamiczny</strong> — <code>uri_template</code> + params <code>{host,domain,source_dir,apply}</code></td></tr>
+<tr><td>8</td><td><strong>EQL</strong> <code>WEB_SCENARIO</code></td><td><code>.eql</code> → <code>eql/src/web/scenario-parser.ts:24</code></td><td>Adaptacyjne scenariusze web (osobny podprojekt).</td><td>Selekcja dynamiczna, wartości statyczne</td></tr>
+<tr><td>9</td><td><strong>DQL</strong></td><td><code>.eql</code>/<code>.patch.eql</code> → <code>eql/src/dql/parser.ts:14</code></td><td>Deterministyczne patche DOM/SVG po id.</td><td><strong>Statyczny</strong></td></tr>
+<tr><td>10</td><td><strong>TestQL</strong></td><td><code>.testql.toon.yaml</code>/<code>.oql</code> → <code>runtime/src/testql-runtime.mjs:44</code>; pełne narzędzie <code>~/github/oqlos/testql</code></td><td>Testy GUI/REST/hardware; <code>EXPECT</code> nad kontekstem.</td><td><strong>Dynamiczny</strong> — <code>EXPECT</code> + wiersze TOON</td></tr>
+<tr><td>11</td><td><strong>TOON</strong></td><td><code>.toon.yaml</code> → code2llm/topology, TestTOON</td><td>Kompaktowy format tabel (topologia kodu, scenariusze). Nieuruchamiany.</td><td>Format danych</td></tr>
+</tbody></table>
+<p>**Do wyrażenia „opublikuj folder $X na domenę $Y&quot; generycznie służą DSL-e z parametrami: AQL (<code>WEJŚCIE</code>), OQL (<code>${...}</code>), intent pack (<code>situation_schema</code>), step-catalog (<code>$situation.*</code>).** Statyczne (jeden-plik-na-target) są: recepty <code>.urirun.json</code>, generowany <code>nlp-uri-phrases.yaml</code>, EQL, DQL.</p>
+<hr />
+<h2>2. Warstwa wykonawcza jest JUŻ generyczna</h2>
+<p>Docroot dowolnej subdomeny liczony jest algorytmicznie, nie z tabeli per-domena:</p>
+<ul>
+<li><code>connectors/services/bridge/src/site-topology.mjs:47</code> — <code>docrootFor(domain)</code> zwraca <code>/httpdocs</code> dla domeny głównej subskrypcji, inaczej <code>/{domain}</code>. <strong>Jedna reguła obsługuje każdą subdomenę.</strong></li>
+<li><code>connectors/services/bridge/src/plesk-httpdocs-sync.mjs:229</code> — <code>planHttpdocsSync({domain, remotePath, source_dir})</code> — zero kodu per-domena; <code>remote_path</code> domyślnie z <code>docrootFor</code>.</li>
+<li><code>platform/config/connector-capabilities/plesk.site.sync.uri.capability.yaml</code> — <code>uri_template: plesk://{host}/site/command/sync</code>, params <code>{host,domain,source_dir,apply}</code>. <strong>Jedna trasa na wszystkie domeny.</strong></li>
+<li><code>platform/config/intent-packs/registry.mjs:44</code> — <code>loadIntentPacks</code> dynamicznie skanuje katalog; schema packa dopuszcza slot <code>domain</code> + <code>may_fill_slots=true</code>. Jeden generyczny pack jest z punktu widzenia schematu <strong>dozwolony</strong>.</li>
+</ul>
+<hr />
+<h2>3. Gdzie DOKŁADNIE siedzi hardkod per-domena (6 miejsc)</h2>
+<table>
+<thead><tr><th>#</th><th>Miejsce</th><th>Plik</th><th>Natura hardkodu</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>Imperatywny <code>if/else</code> na nazwach domen</strong></td><td><code>platform/config/intent-packs/registry.mjs:75-99</code></td><td>rozgałęzia na literały <code>docs-stage/logo/docs.subactor.com</code> i ręcznie ustawia <code>situation.remote_path</code> — <strong>dokładnie to, co <code>docrootFor()</code> liczy algorytmicznie</strong>. To jest reimplementacja generycznej funkcji per-domena.</td></tr>
+<tr><td>2</td><td><strong>Resolver parafraz tylko dla docs/www</strong></td><td><code>core/services/control/src/routes/llm.mjs:32</code>, <code>core/services/control/src/docs-sync-intent.mjs:62</code></td><td><code>legacyPublishIntent</code> = tylko <code>resolveDocsSyncIntent ‖ resolveWwwSyncIntent</code>. To dlatego docs toleruje parafrazy, a logo/identity nie.</td></tr>
+<tr><td>3</td><td><strong>Frazy per-domena</strong></td><td><code>platform/config/intent-packs/{docs,www,logo}-httpdocs-publish.v1.json</code> (<code>phrases[]</code>)</td><td>dosłowne dopasowanie substring (<code>registry.mjs:68</code>). „na plesk&quot; ≠ „w plesk&quot;.</td></tr>
+<tr><td>4</td><td><strong>3 modele AQL</strong></td><td><code>contracts/models/{docs,www,logo}-httpdocs-sync.pl.aql</code></td><td>niemal identyczne, różnią się <code>MODUŁY &quot;create_&lt;X&gt;_httpdocs_sync_ticket&quot;</code>.</td></tr>
+<tr><td>5</td><td><strong>3 step_module</strong></td><td><code>platform/config/step-catalog.json</code></td><td><code>create_docs/www/logo_httpdocs_sync_ticket</code> — jeden na target (choć www już templatuje <code>$situation.*</code>).</td></tr>
+<tr><td>6</td><td><strong>3 recepty urirun</strong></td><td><code>{docs,logo,www}/deployment/*-httpdocs-sync.urirun.json</code></td><td>literalne <code>source_dir/domain/remote_path</code> w każdym payloadzie.</td></tr>
+</tbody></table>
+<p>Generator fraz <code>platform/scripts/sync-intent-pack-derived.mjs</code> produkuje <code>nlp-uri-phrases.yaml</code> <strong>z ręcznie pisanych <code>phrases[]</code> każdego packa</strong> — nie z listy domen. Więc dziś „dodać domenę&quot; = napisać nowy pack (6 artefaktów), a nie dopisać wpis do konfiguracji.</p>
+<hr />
+<h2>4. Najkrótsza ścieżka do dynamiki (bez nowych recept)</h2>
+<p>Warstwa wykonawcza, URI template i <code>docrootFor</code> już rozwiązują dowolną domenę z danych. Praca jest wyłącznie w warstwie rozpoznania/autoringu:</p>
+<ol>
+<li><strong>Jeden generyczny pack</strong> z slotami <code>domain</code> + <code>source_dir</code> (<code>situation_schema</code> już to wspiera, <code>may_fill_slots=true</code>) i frazami z wzorcem — „opublikuj folder {X} na {Y}.subactor.com&quot; — zamiast dosłownych fraz per-domena.</li>
+<li><strong>Usunąć <code>if/else</code> z <code>registry.mjs:75-99</code></strong>; wyekstrahować <code>domain</code>/<code>source_dir</code> z NL (slot-filling), a <code>remote_path</code> domyślnie z <code>docrootFor(domain)</code> — czyli <strong>wywołać istniejącą funkcję zamiast ją powielać</strong>.</li>
+<li><strong>Jeden generyczny model AQL</strong> (<code>WEJŚCIE domain/source_dir</code>, <code>MODUŁY &quot;create_httpdocs_sync_ticket&quot;</code>) + <strong>jeden generyczny step_module</strong> templatujący <code>$situation.*</code> (skopiować krok www, dodać templatowanie <code>remote_path</code>).</li>
+<li>Recepty <code>.urirun.json</code> stają się opcjonalne — templatowany wpis step-catalog zastępuje 3 literalne pliki.</li>
+<li><strong>Generyczny matcher parafraz</strong> (jak <code>matchDocsPublishParaphrase</code>) wpięty w <code>legacyPublishIntent</code>, ekstrahujący <code>{folder, domain}</code> z dowolnego wariantu „publish/opublikuj/sync ... {domena}&quot; i wiążący do jednego sparametryzowanego packa/modelu.</li>
+</ol>
+<p>Efekt: dodanie domeny = zero plików (działa od razu z NL), a najwyżej wpis w jednym SSOT <code>subdomena → source_dir</code>, gdyby folder nie dał się wywnioskować z nazwy.</p>
+<p><strong>Uwaga o bezpieczeństwie:</strong> <code>llm_policy.may_generate_uri=false</code> musi zostać — LLM ekstrahuje <strong>sloty</strong> (domena, folder), ale URI składa deterministyczny <code>uri_template</code>, nie model. Capability preflight (fail-closed) i allowlist source_dir zostają bez zmian. Dynamika dotyczy rozpoznania intentu, nie rozluźnienia bramek.</p>
+<hr />
+<h2>5. Gdzie szukać podobnych rozwiązań (wskazówki nawigacyjne)</h2>
+<ul>
+<li><strong>Slot-filling z NL bez wymyślania URI:</strong> <code>platform/config/intent-packs/schema.v1.json</code> (<code>may_fill_slots</code>, <code>situation_schema</code>), <code>registry.mjs:resolveIntentPack</code>. Wzorzec do naśladowania dla każdej operacji, nie tylko publish.</li>
+<li><strong>Algorytmiczne rozwiązywanie zasobu z nazwy:</strong> <code>site-topology.mjs:docrootFor</code> — wzorzec „reguła zamiast tabeli&quot;. Szukaj podobnych tam, gdzie jest imperatywny <code>if/else</code> na literałach.</li>
+<li><strong>Templatowanie planu:</strong> <code>runtime/src/compiler.mjs:renderValue</code> (<code>${state.path}</code>), <code>step-catalog.json</code> krok <code>create_www_httpdocs_sync_ticket</code> jako referencja <code>$situation.*</code>.</li>
+<li><strong>Parafrazy zamiast dosłownych fraz:</strong> <code>core/services/control/src/docs-sync-intent.mjs</code> (<code>matchDocsPublishParaphrase</code>) — jedyny dziś generyczny matcher; wzorzec do rozszerzenia.</li>
+<li><strong>Katalog capability ↔ URI:</strong> <code>platform/config/connector-capabilities/*.capability.yaml</code> — deklaratywny manifest, dodajesz operację nie dotykając kodu connectora.</li>
+<li><strong>Dynamiczne odkrywanie tras:</strong> urirun-node <code>GET /routes</code> (:18765) — 521 tras z <code>inputSchema</code>; źródło prawdy „co można wywołać&quot;.</li>
+<li><strong>Model AQL jako tablica decyzyjna dla nowej klasy operacji:</strong> <code>runtime/src/aql-runtime.mjs</code> + dowolny <code>contracts/models/*.pl.aql</code>. Patrz też prototyp <code>orchestrator/models/development-defect-classifier.pl.aql</code> (AQL użyte poza publish — do klasyfikacji defektów).</li>
+</ul>
+<hr />
+<h2>6. Podsumowanie w jednym zdaniu</h2>
+<p>System ma <strong>generyczną warstwę wykonawczą</strong> (URI template + <code>docrootFor</code> + <code>$situation</code> templating) i <strong>dynamiczny schema intent-packów</strong>, ale nakłada na to <strong>statyczną, per-domenową warstwę rozpoznania</strong> (dosłowne frazy + imperatywny <code>if/else</code> + 6 plików na domenę). Uczynienie publish dynamicznym to <strong>usunięcie duplikacji w routingu</strong>, nie dopisywanie recept — cała maszyneria „na dynamicznych danych&quot; już istnieje pod spodem.</p>
+</main>
+</body>
+</html>

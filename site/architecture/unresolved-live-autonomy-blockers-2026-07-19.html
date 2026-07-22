@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blokery pełnej autonomii, których nie można zamknąć lokalnie — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Blokery pełnej autonomii, których nie można zamknąć lokalnie</h1>
+<p><strong>Stan na:</strong> 2026-07-19, Europe/Warsaw <strong>Zakres:</strong> produkcyjna praca platformy Subactor: publikowanie stron, komunikacja z ludźmi, telefon, e-mail, kontrakty, outsourcing i działanie w wielu jurysdykcjach. <strong>Charakter dokumentu:</strong> rejestr brakujących uprawnień, danych, umów i decyzji zewnętrznych. Dokument nie zawiera sekretów i nie jest opinią prawną.</p>
+<h2>1. Co oznacza „nie można rozwiązać teraz”</h2>
+<p>Problem należy do tej listy, jeżeli kod może przygotować plan, wykonać dry-run, pilnować SLA lub utworzyć eskalację, ale nie może legalnie albo technicznie stworzyć brakującego faktu. Takimi faktami są między innymi:</p>
+<ul>
+<li>uprawnienie nadane przez właściciela konta lub infrastruktury;</li>
+<li>sekret API, którego platforma nigdy nie otrzymała;</li>
+<li>podpisana umowa, pełnomocnictwo lub mandat osoby;</li>
+<li>decyzja właściciela DNS albo subskrypcji hostingowej;</li>
+<li>numer telefonu, skrzynka pocztowa lub konto dostawcy;</li>
+<li>interpretacja prawa zatwierdzona dla konkretnej jurysdykcji;</li>
+<li>zgoda człowieka, gdy wymaga jej prawo albo wcześniej przyjęta polityka.</li>
+</ul>
+<p>Subactor nie może rozwiązać takich braków przez rozszerzenie własnego AQL, wygenerowanie pozornego sekretu, zaakceptowanie regulaminu w imieniu nieumocowanej osoby ani uznanie testu mock za dowód działania produkcyjnego.</p>
+<h2>2. Podsumowanie blokad</h2>
+<table>
+<thead><tr><th>Priorytet</th><th>Blokada</th><th>Właściciel zewnętrznego działania</th><th>Wpływ</th></tr></thead>
+<tbody>
+<tr><td>P0</td><td>Endpoint Plesk skonfigurowany po HTTP, podczas gdy auth probe wymaga HTTPS</td><td>operator Plesk / infrastruktury</td><td><code>auth/query/status</code> kończy się <code>plesk_https_required</code>; brak produkcyjnego scope proof</td></tr>
+<tr><td>P0</td><td>Nieznany limit domen subskrypcji Plesk</td><td>właściciel konta Plesk / hosting</td><td>brak bezpiecznego utworzenia nowej domeny</td></tr>
+<tr><td>P0</td><td>Brak docelowego DNS i certyfikatów TLS</td><td>właściciel stref DNS / operator Plesk</td><td>brak publicznego HTTPS i proxy dla chatu</td></tr>
+<tr><td>P0</td><td>Brak aktywacji produkcyjnych mandatów mutacji</td><td>constitutional authority</td><td>apply pozostaje prawidłowo zablokowane</td></tr>
+<tr><td>P0</td><td>Brak danych dostępowych realnego e-maila</td><td>administrator poczty</td><td>agent nie odbiera i nie wysyła realnej poczty</td></tr>
+<tr><td>P0</td><td>Brak kompletnej konfiguracji telefonii</td><td>właściciel konta telekomunikacyjnego</td><td>brak realnych rozmów telefonicznych</td></tr>
+<tr><td>P0</td><td>Brak zatwierdzonej matrycy prawnej jurysdykcji</td><td>prawnik i umocowany reprezentant organizacji</td><td>brak autonomicznego zatrudniania i podpisywania umów</td></tr>
+<tr><td>P1</td><td>Brak rzeczywistych mandatów grafu sukcesji</td><td>władze organizacji</td><td>nie można aktywować następców tylko na podstawie YAML</td></tr>
+<tr><td>P1</td><td>Brak aktywnych umów ramowych z dostawcami</td><td>procurement / prawnik / finance</td><td>connector nie może legalnie utworzyć work order</td></tr>
+<tr><td>P1</td><td>Brak kont i umocowania na marketplace</td><td>właściciele kont sprzedażowych</td><td>scenariusze sprzedaży pozostają symulacją</td></tr>
+<tr><td>P1</td><td>Brak produkcyjnej tożsamości i ingressu chatu</td><td>operator DNS/TLS/IdP</td><td>chat działa lokalnie, ale nie publicznie per-user</td></tr>
+<tr><td>P1</td><td>Brak kontrolowanego testu live end-to-end</td><td>właściciele powyższych zasobów</td><td>zielony TestQL nie dowodzi gotowości produkcyjnej</td></tr>
+<tr><td>P1</td><td>Child grant jest sprawdzany przez oficjalny executor, ale jeszcze nie natywnie przez każdy connector/urirun command boundary</td><td>właściciel urirun policy i connectorów</td><td>klient posiadający zbyt szeroki token node mógłby ominąć executor; produkcyjne auth commands pozostają wyłączone</td></tr>
+</tbody></table>
+<h2>3. Nieznany limit domen subskrypcji Plesk</h2>
+<h3>Blokada transportu auth probe</h3>
+<p>Po wdrożeniu auth conformance żywy runtime urirun poprawnie odkrywa i wykonuje <code>plesk://host/auth/query/acquisition-methods</code>. Odczytowe <code>plesk://host/auth/query/status</code> dociera do connectora, ale zwraca <code>plesk_https_required</code>, ponieważ bieżący endpoint Plesk jest skonfigurowany po HTTP. Jest to poprawna odmowa fail-closed. Operator musi udostępnić zaufany endpoint HTTPS z prawidłową walidacją certyfikatu; wyłączenie kontroli TLS nie jest akceptowalną naprawą. Dopiero wtedy można wykonać scope probe i dołączyć jego wynik do evidence.</p>
+<h3>Dowód</h3>
+<p>Ostatni bezpieczny probe subskrypcji zwrócił:</p>
+<pre><code class="language-json">{
+  &quot;authenticated&quot;: true,
+  &quot;permission&quot;: true,
+  &quot;domains_used&quot;: 0,
+  &quot;domains_limit&quot;: null,
+  &quot;limit_known&quot;: false,
+  &quot;can_create_domain&quot;: false,
+  &quot;reason&quot;: &quot;subscription_domain_limit_unknown&quot;
+}</code></pre>
+<p>SFTP i FTP są dostępne, ale dostęp do transportu nie jest dowodem prawa ani limitu utworzenia domeny. Dry-run <code>projekty/02_landing</code> dla <code>autonomicznosc.pl</code> przeszedł: 8 plików, 32 934 bajty, plan hash <code>8cec51cdbf70dcaa0c795f1b1f4e826bcdd7b62d60472435c795d3c47c794c23</code>. Nie wykonano produkcyjnego apply.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Platforma nie może przyjąć, że <code>null</code> oznacza brak limitu. Nie może również zmienić planu hostingowego, kupić rozszerzenia ani zaakceptować nowej umowy z hostingiem bez istniejącego mandatu i budżetu. Próba utworzenia domeny „dla sprawdzenia” byłaby mutacją produkcyjną i mogłaby wywołać koszt lub konflikt z istniejącą konfiguracją.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<p>Właściciel subskrypcji albo operator hostingu musi dostarczyć autorytatywny odczyt liczbowego limitu i potwierdzić, czy konto może tworzyć domeny dodatkowe. Jeżeli API tego nie udostępnia, wymagany jest eksport z panelu albo odpowiedź dostawcy przypisana do audytowalnego ticketu.</p>
+<h3>Warunek zamknięcia</h3>
+<ul>
+<li><code>domains_limit</code> jest znaną liczbą albo istnieje jawny status „unlimited”;</li>
+<li>connector potwierdza wolny slot i wymagane uprawnienie;</li>
+<li>testowa domena może zostać utworzona i usunięta w uzgodnionym sandboxie;</li>
+<li>wynik jest zapisany jako evidence bundle bez sekretów.</li>
+</ul>
+<h3>Bezpieczna kontynuacja</h3>
+<p>System może nadal generować treść, walidować źródło, wyliczać manifest i wykonywać dry-run. Nie może obiecywać publicznej publikacji nowej domeny.</p>
+<h2>4. DNS, TLS i publiczny routing</h2>
+<h3>Dowód</h3>
+<p>Lokalny portal i agent chatu działają, lecz <code>chat.subactor.com</code> nie ma potwierdzonego docelowego DNS/TLS prowadzącego do właściwego ingressu. Rejestr TODO wymienia również korektę DNS/TLS dla <code>identity.subactor.com</code>. Historyczne testy <code>docs.subactor.com</code> wykazały rozdział między treścią na Plesku a domeną obsługiwaną przez GitHub Pages. Każda domena musi więc być zweryfikowana osobno; sam upload plików nie dowodzi publikacji.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Zmiana DNS wpływa na ruch publiczny, pocztę, certyfikaty i możliwość wycofania zmiany. Platforma nie może odgadnąć, który operator jest source of truth, ani przejąć strefy bez credentiali i umocowania. Certyfikatu dla publicznej nazwy nie można wiarygodnie uzyskać przed poprawnym routingiem i spełnieniem challenge dostawcy.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<ul>
+<li>wskazanie właściciela strefy i kanonicznego operatora DNS;</li>
+<ul>
+<li>udostępnienie ograniczonego connectorowi mandatu do konkretnych rekordów;</li>
+<li>decyzja, które domeny pozostają na GitHub Pages, a które przechodzą na Plesk;</li>
+<li>określenie publicznego ingressu dla chatu i callbacków webhook;</li>
+<li>zatwierdzenie okna cutover oraz rollbacku.</li>
+</ul>
+</ul>
+<h3>Warunek zamknięcia</h3>
+<p>Dla każdej domeny jednocześnie muszą przechodzić:</p>
+<ol>
+<li>zgodny rekord A/AAAA/CNAME;</li>
+<li>certyfikat zawierający hostname w SAN;</li>
+<li>HTTP 200 po ścisłej weryfikacji TLS;</li>
+<li>oczekiwany fingerprint treści;</li>
+<li>test rollbacku do ostatniej dobrej wersji.</li>
+</ol>
+<h3>Bezpieczna kontynuacja</h3>
+<p>Można przygotowywać desired state DNS, plan cutover, cert request i testy <code>--resolve</code>. Bez mandatu connector nie powinien zmieniać publicznych rekordów.</p>
+<h2>5. Produkcyjny apply i prawne umocowanie</h2>
+<h3>Dowód</h3>
+<p>Próba produkcyjna <code>apply: true</code> bez aktywnych bramek została prawidłowo odrzucona:</p>
+<pre><code class="language-json">{
+  &quot;ok&quot;: false,
+  &quot;error&quot;: &quot;autonomy_mutations_disabled&quot;,
+  &quot;dry_run&quot;: true
+}</code></pre>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Kill switch, podpisany apply grant, AQL, limit kosztu i kontrakt aktora są niezależnymi zabezpieczeniami. System nie może sam nadać sobie szerszego AQL, podpisać grantu jako constitutional authority ani uznać braku odpowiedzi Foundera za automatyczną zgodę. Byłoby to obejście modelu odpowiedzialności, a nie autonomia.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<p>Umocowany reprezentant musi wcześniej zatwierdzić politykę mutacji, role, limity, budżety i graf sukcesji. Aktywacja powinna nastąpić przez podpisany, czasowy grant związany z konkretnym <code>plan_hash</code>, nie przez edycję flagi podczas awarii.</p>
+<h3>Warunek zamknięcia</h3>
+<ul>
+<li>istnieje aktywny kontrakt AQL dla aktora wykonawczego;</li>
+<li>grant jest podpisany, ograniczony czasowo i związany z planem oraz celem;</li>
+<li>kill switch i budżet pozwalają na operację;</li>
+<li>preflight, apply, verify i rollback mają kompletne evidence;</li>
+<li>ponowne użycie grantu jest odrzucane.</li>
+</ul>
+<h3>Bezpieczna kontynuacja</h3>
+<p>Dry-run, przygotowanie dowodów i wyszukiwanie alternatyw mogą działać bez mutacji. Brak grantu nie może zatrzymywać niezależnych procesów firmy.</p>
+<h2>6. Realna poczta e-mail</h2>
+<h3>Dowód</h3>
+<p>Usługa <code>inbound-email-agent</code> jest zdrowa jako proces, ale jej stan funkcjonalny to <code>waiting_credentials</code>; worker nie pracuje, a ostatni błąd wskazuje brak lease dla nazwy użytkownika IMAP. Testy autoryzacji, idempotencji, kwarantanny i sejfowego vaultu przechodzą, lecz używają kontrolowanego środowiska testowego.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Platforma nie może wygenerować hasła do istniejącej skrzynki, utworzyć konta u dostawcy bez uprawnienia ani wysłać sobie sekretu e-mailem. Nie może też uznać samego pola <code>From</code> za dowód tożsamości nadawcy.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<ul>
+<li>utworzenie dedykowanej skrzynki lub konta API;</li>
+<li>przekazanie IMAP/SMTP albo OAuth przez jednorazowy intake do vaultu;</li>
+<li>konfiguracja SPF, DKIM i DMARC;</li>
+<li>potwierdzenie dozwolonych nadawców, odbiorców i polityki retencji;</li>
+<li>ustalenie limitów wysyłki i procedury rotacji credentiali.</li>
+</ul>
+<h3>Warunek zamknięcia</h3>
+<p>Agent odbiera podpisaną/autoryzowaną wiadomość z realnej domeny, tworzy dokładnie jeden ticket, odpowiada przez dozwolony kanał, poprawnie odrzuca spoofing i po rotacji nadal działa bez zapisu sekretu w logach.</p>
+<h3>Bezpieczna kontynuacja</h3>
+<p>Można używać Mailpit i scenariuszy E2E. Nie należy przedstawiać ich jako realnego kanału komunikacji z Founderem.</p>
+<h2>7. Telefon i rozmowy głosowe</h2>
+<h3>Dowód</h3>
+<p>Doctor connectora głosowego zwraca obecnie:</p>
+<pre><code class="language-json">{
+  &quot;credentials&quot;: false,
+  &quot;from_number&quot;: false,
+  &quot;allowed_destinations&quot;: 0,
+  &quot;mutations&quot;: false,
+  &quot;webhook_signature_required&quot;: true,
+  &quot;live_ready&quot;: false
+}</code></pre>
+<p>Connector i jego testy fail-closed działają, ale nie istnieje kompletna konfiguracja produkcyjna.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Numer, konto rozliczeniowe i zweryfikowane destination należą do dostawcy i organizacji. System nie może zaakceptować regulaminu telekomunikacyjnego, ustalić zasad nagrywania rozmów ani wyprowadzić zgody rozmówcy z samego faktu posiadania numeru. Wymagania zależą od jurysdykcji, celu połączenia i tego, czy rozmowa jest nagrywana lub transkrybowana.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<ul>
+<li>aktywne konto dostawcy i numer źródłowy;</li>
+<li>sekret API umieszczony w vault;</li>
+<li>jawna allowlista numerów i limity kosztu;</li>
+<li>publiczny HTTPS webhook z walidacją podpisu;</li>
+<li>zatwierdzony komunikat identyfikacyjny, zasady zgody, retencji i nagrywania;</li>
+<li>opinia prawna dla używanych jurysdykcji.</li>
+</ul>
+<h3>Warunek zamknięcia</h3>
+<p>Kontrolowane połączenie testowe dochodzi do dozwolonego numeru, callback ma poprawny podpis, retry nie powoduje duplikatu, koszt mieści się w limicie, a retencja nagrania/transkrypcji jest zgodna z zatwierdzoną polityką.</p>
+<h3>Bezpieczna kontynuacja</h3>
+<p>Można testować payloady i walidację webhooków lokalnie. Połączenia wychodzące pozostają wyłączone.</p>
+<h2>8. Publiczny chat per-user</h2>
+<h3>Dowód</h3>
+<p>Lokalny <code>autonomy-chat-agent</code> działa w trybie <code>normal</code>. Test digital twin potwierdził, że 8 zarejestrowanych aktorów może czytać wyłącznie własną, read-only projekcję; dostęp cross-subject jest blokowany. Nie ma jednak potwierdzonego publicznego ingressu <code>chat.subactor.com</code> z docelowym DNS/TLS i produkcyjnym źródłem tożsamości użytkowników.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Lokalny reverse proxy nie daje automatycznie publicznego, trwałego endpointu. Platforma nie może tworzyć kont ludzi ani wiązać ich z kontraktami bez potwierdzenia tożsamości i podstawy organizacyjnej. Nie powinna również wystawiać lokalnego tokenu administracyjnego do Internetu.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<ul>
+<li>DNS/TLS i publiczny ingress z kontrolowanym tunelem albo wdrożeniem;</li>
+<li>produkcyjny IdP lub zatwierdzony mechanizm logowania;</li>
+<li>procedura zapraszania, zawieszania i usuwania użytkowników;</li>
+<li>mapowanie principal → kontrakt AQL → digital twin;</li>
+<li>polityka sesji, MFA, rate limitu i odzyskania konta.</li>
+</ul>
+<h3>Warunek zamknięcia</h3>
+<p>Dwóch różnych użytkowników loguje się publicznie przez HTTPS, każdy widzi tylko własny twin i własne rozmowy, próba cross-user kończy się odmową, wylogowanie i unieważnienie sesji działają, a logi nie zawierają tokenów.</p>
+<h3>Bezpieczna kontynuacja</h3>
+<p>Portal może pozostać dostępny wyłącznie na loopbackie. Można rozwijać UI i testować izolację bez publikowania panelu administracyjnego.</p>
+<h2>9. Prawo pracy, staże, rekrutacja i umowy w wielu jurysdykcjach</h2>
+<h3>Problem</h3>
+<p>Scenariusz bezpłatnego stażu edukacyjnego, rozmowy rekrutacyjnej, przydzielania ticketów, przetwarzania CV i podpisu elektronicznego nie ma jednej uniwersalnej kwalifikacji prawnej. Znaczenie mają co najmniej: kraj organizacji, kraj i wiek kandydata, faktyczny zakres pracy, podporządkowanie, korzyść ekonomiczna, wynagrodzenie, czas pracy, ubezpieczenie, podatki, dane osobowe i rodzaj podpisu.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>DSL może egzekwować zatwierdzone reguły, ale nie może sam stworzyć legalnej podstawy bezpłatnej pracy ani przesądzić, że nazwanie relacji „edukacją” zmienia jej rzeczywisty charakter. Nie może zastąpić prawnika, urzędu, opiekuna osoby małoletniej ani umocowanego podpisującego. Nie może również stosować szablonu z jednego kraju do wszystkich kandydatów.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<p>Dla każdej obsługiwanej jurysdykcji prawnik powinien zatwierdzić wersjonowany pakiet zawierający:</p>
+<ul>
+<li>dozwolone typy relacji i kryteria kwalifikacji;</li>
+<li>minimalny wiek i wymagane zgody;</li>
+<li>obowiązkowe wynagrodzenie, świadczenia, ubezpieczenie i limity czasu;</li>
+<li>obowiązki informacyjne i retencję danych kandydatów;</li>
+<li>dopuszczalne pytania rekrutacyjne i zakazane kryteria;</li>
+<li>wymagany rodzaj podpisu i dowodu doręczenia;</li>
+<li>reguły zakończenia relacji oraz wydania dokumentów;</li>
+<li>organ lub osobę uprawnioną do podpisu po stronie organizacji.</li>
+</ul>
+<p>Każdy pakiet musi wskazywać źródło, datę weryfikacji, prawnika/owner i termin ponownego przeglądu. Brak dopasowanego, aktywnego pakietu powinien blokować tylko daną czynność prawną, nie pozostałe procesy firmy.</p>
+<h3>Warunek zamknięcia</h3>
+<ul>
+<li>kandydat jest przypisany do jednoznacznej jurysdykcji i statusu;</li>
+<li>aktywny jurisdiction pack pasuje do relacji i wersji umowy;</li>
+<li>umowa pochodzi z zatwierdzonego szablonu i nie ma pustych pól prawnych;</li>
+<li>podpisujący ma ważny mandat;</li>
+<li>e-sign provider zwraca evidence doręczenia, tożsamości i integralności;</li>
+<li>onboarding nie uruchamia pracy przed spełnieniem wszystkich warunków.</li>
+</ul>
+<h3>Bezpieczna kontynuacja</h3>
+<p>System może prowadzić symulacje na fikcyjnych danych, generować drafty oznaczone <code>NOT FOR SIGNATURE</code>, tworzyć checklisty oraz przydzielać wyłącznie szkoleniowe tickety w sandboxie. Nie powinien publikować realnej oferty „stażu za darmo” ani wysyłać realnej umowy przed zatwierdzeniem właściwego pakietu prawnego.</p>
+<h2>10. Graf sukcesji i zastępstwo ludzi</h2>
+<h3>Problem</h3>
+<p>Architektura przewiduje <code>organization:constitutional-authority</code>, następców, quorum i operatorów zewnętrznych. Sam wpis w <code>authority-succession.yaml</code> nie tworzy jednak pełnomocnictwa, stosunku umownego ani dostępu do konta.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>System nie może wymyślić danych następców, nadać im praw ani uznać ich zgody bez ważnej czynności organizacyjnej. Nie może też aktywować większych praw wyłącznie na podstawie jednego braku odpowiedzi Foundera.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<ul>
+<li>wyznaczenie konkretnych osób i zastępców;</li>
+<li>podpisanie mandatów, pełnomocnictw albo umów odpowiednich dla organizacji;</li>
+<li>konfiguracja quorum i niezależnych kanałów potwierdzenia niedostępności;</li>
+<li>nadanie odrębnych tożsamości i minimalnego dostępu;</li>
+<li>ćwiczenie ciągłości z kontrolowanym odwołaniem uprawnień.</li>
+</ul>
+<h3>Warunek zamknięcia</h3>
+<p>Test ciągłości potwierdza sekwencję founder → deputy → quorum → operator zewnętrzny, bez rozszerzenia scope roli, bez współdzielonych credentiali i z pełnym audytem aktywacji oraz cofnięcia.</p>
+<h2>11. Outsourcing, e-sign i marketplace</h2>
+<h3>Problem</h3>
+<p>Istnienie connectora, URI Process albo repozytorium publicznego nie oznacza, że organizacja posiada aktywne konto, zaakceptowane warunki, prawo sprzedaży, umowę ramową, metodę płatności lub limit wydatków. Audyt wykrywa obecnie 76 repozytoriów connectorów: 41 kompatybilnych, 34 częściowe i 1 bez wykrywalnego manifestu/kontraktu/bindingu (<code>urirun-connector-scanner</code>).</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Platforma nie może zawrzeć pierwszej umowy ramowej bez mandatu, dopisać firmy do marketplace bez weryfikacji właściciela ani uznać testowego webhooka za dowód produkcyjnego podpisu. Nie może też sam ustalić zobowiązań podatkowych i konsumenckich dla sprzedawanych produktów w każdym kraju.</p>
+<h3>Wymagane działanie zewnętrzne</h3>
+<ul>
+<li>aktywne konta organizacji u wybranych dostawców;</li>
+<li>zweryfikowana tożsamość/KYB oraz role administratorów;</li>
+<li>podpisane MSA/DPA i katalog usług albo zatwierdzone warunki marketplace;</li>
+<li>budżety, stawki, waluta, podatki, refundacje i odpowiedzialność;</li>
+<li>sekrety API przekazane do vaultu;</li>
+<li>sandbox i produkcyjny webhook dla e-sign/płatności;</li>
+<li>co najmniej dwóch zakontraktowanych dostawców dla funkcji krytycznych.</li>
+</ul>
+<h3>Warunek zamknięcia</h3>
+<p>Kontrolowany proces quote → work order → identity → minimal access → evidence → accept/reject → invoice przechodzi u rzeczywistego dostawcy, a zastąpienie primary przez secondary działa w granicach SLA i budżetu.</p>
+<h2>12. Brak pełnego dowodu live end-to-end</h2>
+<h3>Dowód</h3>
+<p>Pełny TestQL, API E2E, portale ról, digital twin, URI Process, Core, Runtime, kontrakty i testy niezawodności przechodzą. TestQL Plesk korzysta jednak również z mocków oraz bezpiecznych bramek. Zielony wynik potwierdza logikę i odmowę nieautoryzowanych mutacji, lecz nie potwierdza publicznego DNS, realnej poczty, realnego telefonu, podpisania umowy ani sprzedaży na marketplace.</p>
+<h3>Dlaczego Subactor nie może zamknąć problemu sam</h3>
+<p>Test produkcyjny wymaga zasobów i mandatów opisanych w sekcjach 3–11. Ominięcie ich tylko po to, by test był zielony, zniszczyłoby znaczenie testu autonomii.</p>
+<h3>Wymagany scenariusz akceptacyjny</h3>
+<p>Po dostarczeniu zewnętrznych zależności należy przeprowadzić kontrolowany scenariusz:</p>
+<pre><code class="language-text">cel Foundera
+→ plan i dry-run
+→ preflight capability/authority/budget/jurisdiction
+→ utworzenie domeny testowej
+→ publikacja i publiczny verify HTTPS
+→ kontakt e-mail i chat z dwoma odrębnymi użytkownikami
+→ testowe połączenie głosowe do allowlisty
+→ draft umowy z zatwierdzonego jurisdiction pack
+→ podpis w sandboxie e-sign
+→ przydział sandboxowego ticketu
+→ evidence bundle
+→ rollback i zamknięcie dostępów</code></pre>
+<p>Sukces wymaga dowodu każdego kroku, a nie tylko statusu procesu.</p>
+<h2>13. Problemy techniczne, które nie są blokadami zewnętrznymi</h2>
+<p>Poniższe problemy są otwarte, ale można je rozwiązać zmianą kodu albo metadanych. Nie należy używać ich jako uzasadnienia oczekiwania na Foundera:</p>
+<table>
+<thead><tr><th>Problem</th><th>Stan</th><th>Następne działanie techniczne</th></tr></thead>
+<tbody>
+<tr><td>Nieaktualny pin Core w teście meta</td><td><code>test:meta</code> oczekuje <code>36130b5</code>, platforma wskazuje <code>a9ac816</code>; Core przechodzi 158/158</td><td>zaktualizować oczekiwany pin, uruchomić pełne <code>npm test</code>, dopiero potem push</td></tr>
+<tr><td>Dry-run klasyfikuje niewykonywany apply jako wymagający człowieka</td><td>powstają eskalacje <code>PLF-506</code> / <code>SELFDEV-074</code></td><td>w dry-run mapować apply na <code>skipped_dry_run</code>; zachować authority gate dla realnego apply</td></tr>
+<tr><td>Niespójny dowód odmowy Plesk</td><td>bezpośredni connector zwraca <code>files_uploaded: null</code>, bridge oczekuje <code>0</code></td><td>ujednolicić schemat odpowiedzi odmowy i dodać test kontraktowy Python ↔ JS</td></tr>
+<tr><td>Niepełne metadane connectorów</td><td>34 partial, 1 not-detected</td><td>dodać manifesty, contracts, bindings i declared routes; nie zmienia to samo w sobie uprawnień live</td></tr>
+<tr><td>Historyczny incydent obserwowalności</td><td>1 critical w historii, 0 otwartych incydentów</td><td>zachować historię, zweryfikować klasyfikację i regułę zamknięcia</td></tr>
+</tbody></table>
+<p>Te zadania powinny zostać wykonane przed bramką release, ale nie wymagają sekretów, zawarcia umowy ani decyzji prawnej.</p>
+<h2>14. Minimalny pakiet danych potrzebny od organizacji</h2>
+<p>Aby przejść z bezpiecznego dry-run do kontrolowanego live, organizacja powinna dostarczyć przez bezpieczne kanały:</p>
+<ol>
+<li>potwierdzenie limitu i praw subskrypcji Plesk;</li>
+<li>listę domen, właścicieli DNS, oczekiwanych originów i politykę rollbacku;</li>
+<li>produkcyjne konta e-mail, telefon, e-sign i marketplace;</li>
+<li>sekrety przekazane wyłącznie przez jednorazowy intake do vaultu;</li>
+<li>listę principalów, następców, quorum i podpisane mandaty;</li>
+<li>zatwierdzone jurisdiction packs oraz wersje szablonów umów;</li>
+<li>budżety zdarzeń, limity miesięczne i emergency reserve;</li>
+<li>umowy ramowe primary/secondary dla krytycznych usług;</li>
+<li>zgodę na konkretny, ograniczony scenariusz testu live;</li>
+<li>właściciela akceptacji evidence i procedury cofnięcia dostępu.</li>
+</ol>
+<h2>15. Reguła operacyjna do czasu zamknięcia blokad</h2>
+<pre><code class="language-text">brak zewnętrznego faktu
+→ nie twórz go pozornie
+→ zapisz typowany blocker i wymagany capability/authority
+→ kontynuuj dry-run, przygotowanie, ochronę usług i niezależne zadania
+→ pilnuj SLA oraz szukaj wcześniej umocowanego zastępcy
+→ wykonaj mutację dopiero po uzyskaniu ważnego dowodu i mandatu</code></pre>
+<p>Brak jednej zależności nie powinien zatrzymywać całej platformy. Powinien zatrzymać wyłącznie operację, której bez tej zależności nie da się wykonać legalnie, bezpiecznie i weryfikowalnie.</p>
+<h2>16. Powiązane dokumenty</h2>
+<ul>
+<li><a href="../plans/full-platform-remediation-plan-2026-07-19.html"><code>../plans/full-platform-remediation-plan-2026-07-19.md</code></a></li>
+<li><a href="plesk-publish-status-report-2026-07-19.html"><code>plesk-publish-status-report-2026-07-19.md</code></a></li>
+<li><a href="autonomy-ops-status-and-open-questions.html"><code>autonomy-ops-status-and-open-questions.md</code></a></li>
+<li><a href="../plans/resolution-continuity-implementation.html"><code>../plans/resolution-continuity-implementation.md</code></a></li>
+<li><a href="../plans/autonomy-implementation-roadmap.html"><code>../plans/autonomy-implementation-roadmap.md</code></a></li>
+<li><a href="../deployment/PLESK.html"><code>../deployment/PLESK.md</code></a></li>
+<li><a href="adr/002-dns-ssot.html"><code>adr/002-dns-ssot.md</code></a></li>
+<li><a href="adr/003-approval-hitl-model.html"><code>adr/003-approval-hitl-model.md</code></a></li>
+<li><a href="adr/006-secrets-ownership.html"><code>adr/006-secrets-ownership.md</code></a></li>
+</ul>
+</main>
+</body>
+</html>

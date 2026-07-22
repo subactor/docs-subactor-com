@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Architektura Subactor Organization OS — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Architektura Subactor Organization OS</h1>
+<h2>Workspace i source of truth</h2>
+<p>Lokalny multi-repo workspace składa się z kanonicznych komponentów (<code>core</code>, <code>agents</code>, <code>connectors</code>, <code>runtime</code>, <code>contracts</code>, …) oraz assembly <code>platform/</code> z submodułami w <code>platform/components/*</code>.</p>
+<p>Edycje logiki domenowej: <strong>komponent kanoniczny + mirror submodule</strong> (testy platformy importują z <code>components/</code>). Indeks code2llm widzi obie kopie — patrz <a href="./CODEBASE_HEALTH.html">CODEBASE_HEALTH.md</a>.</p>
+<h2>Warstwy</h2>
+<h3>Organization Core</h3>
+<p>Przechowuje kanoniczne rekordy organizacji. Udostępnia REST CRUD, wyszukiwanie, dashboard, miękką archiwizację, seeding developerski i wewnętrzne operacje OQL.</p>
+<h3>Control Panel</h3>
+<p>Obsługuje tokeny, AQL/OQL, zatwierdzenia, audyt oraz proxy do Organization Core. Przeglądarka nie otrzymuje sekretów usług.</p>
+<h3>AQL</h3>
+<p>Klasyfikuje sytuację na podstawie typowanych wejść. Pierwsza reguła według priorytetu wybiera wariant, odbiorców, kroki i reason code.</p>
+<h3>OQL</h3>
+<p>Jest czytelnym planem do zatwierdzenia. Plan nie wykonuje się przed przejściem do statusu <code>approved</code>.</p>
+<h3>Bridge</h3>
+<p>Wykonuje tylko operacje z katalogu. Operacje <code>org.*</code> trafiają do Organization Core, a komunikacyjne do Pleska, SMTP, Slacka, Teams, webhooków albo kalendarza.</p>
+<h3>LLM Gateway</h3>
+<p>Jedyny komponent posiadający klucz OpenRouter. LLM tworzy typowany JSON albo projekt wiadomości. Nie zatwierdza ani nie wykonuje planów.</p>
+<h2>Granice domen</h2>
+<pre><code class="language-text">People Operations      ludzie, zespoły, onboarding
+Customer Operations    klienci, kontakty, relacje
+Communication          rozmowy, wiadomości, zobowiązania
+Contract Operations    umowy i wersje
+Project Operations     projekty, zadania, blokery
+Strategy Operations    decyzje i realizacja strategii</code></pre>
+<p>Wszystkie domeny współdzielą identyfikatory, tokeny, audyt i mechanizm AQL/OQL, ale zachowują odrębne zakresy uprawnień.</p>
+<h2>Project Business Layer (v2.1)</h2>
+<p><code>project-importer</code> jest osobną usługą z własnym tokenem serwisowym. Nie zapisuje danych bezpośrednio do plików Organization Core — korzysta z jego API.</p>
+<pre><code class="language-text">hr-control
+  ├── project-importer
+  │     ├── website importer
+  │     ├── directory importer
+  │     ├── git importer
+  │     ├── Markdown normalizer
+  │     ├── deterministic blueprint
+  │     ├── optional LLM analysis
+  │     └── import TestQL
+  ├── AQL/OQL plan registry
+  └── Organization Core
+        └── project workspace</code></pre>
+<p>Bridge wykonuje operacje <code>org.*</code> oraz <code>testql.project.run</code>. Wszystkie działania zmieniające organizację pozostają za planem OQL i approval.</p>
+<h2>Control service — modularność</h2>
+<p>Control (<code>core/services/control/src/</code>) jest rozbijany z monolitowego <code>server.mjs</code>:</p>
+<table>
+<thead><tr><th>Moduł</th><th>Odpowiedzialność</th></tr></thead>
+<tbody>
+<tr><td><code>delegation-config.mjs</code></td><td>domyślna konfiguracja + normalizacja ról/reguł</td></tr>
+<tr><td><code>delegation-coverage.mjs</code></td><td>match ticketu, pokrycie AQL</td></tr>
+<tr><td><code>delegation-manager.mjs</code></td><td>decyzja i preview (public API)</td></tr>
+<tr><td><code>delegation-summary.mjs</code></td><td>agregaty UI</td></tr>
+<tr><td><code>access-registry.mjs</code></td><td>walidacja aktorów / kontraktów AQL</td></tr>
+<tr><td><code>integration-records.mjs</code></td><td>public/secret split integracji</td></tr>
+<tr><td><code>scenario-editor.mjs</code></td><td>normalizacja scenariuszy LLM</td></tr>
+<tr><td><code>system-dashboard.mjs</code></td><td>read model dashboardu</td></tr>
+<tr><td><code>server.mjs</code></td><td>HTTP, store, proxy do bridge/org/llm</td></tr>
+</tbody></table>
+<p>Kolejność dalszego refaktoru: routing HTTP, bridge <code>execute</code>, UI <code>app.js</code> — szczegóły w <a href="./CODEBASE_HEALTH.html">CODEBASE_HEALTH.md</a>.</p>
+</main>
+</body>
+</html>

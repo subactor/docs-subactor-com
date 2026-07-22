@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autonomia ops — status i pytania otwarte — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Autonomia ops — status i pytania otwarte</h1>
+<p><strong>Data testów:</strong> 2026-07-18 <strong>Zakres:</strong> pełna autonomia operacyjna <strong>bez self-evolution</strong> (system nie przepisuje samego siebie). <strong>Kanoniczny runbook:</strong> <a href="../autonomy-cli-runbook.html"><code>../autonomy-cli-runbook.md</code></a> <strong>Plan publish:</strong> <a href="../plans/docs-subactor-com-publish.html"><code>../plans/docs-subactor-com-publish.md</code></a> <strong>Architektura intentów:</strong> <a href="./intent-orchestration-and-fallbacks.html"><code>intent-orchestration-and-fallbacks.md</code></a> <strong>Rekomendowane rozwiązanie:</strong> <a href="./autonomy-recommended-solution.html"><code>autonomy-recommended-solution.md</code></a> <strong>ADR (Faza 0):</strong> <a href="./adr/README.html"><code>adr/README.md</code></a> <strong>Roadmapa:</strong> <a href="../plans/autonomy-implementation-roadmap.html"><code>../plans/autonomy-implementation-roadmap.md</code></a> <strong>Baseline tego dokumentu:</strong> commit <code>5894906</code> (snapshot diagnostyczny; nie mieszać z refaktorem orchestratora).</p>
+<hr />
+<h2>1. Aktualna sytuacja</h2>
+<p>Docelowa pętla:</p>
+<pre><code class="language-text">NL → intent → plan (ticket / recipe) → deploy (urirun) → verify → NL</code></pre>
+<h3>Co działa w pętli (dziś)</h3>
+<table>
+<thead><tr><th>Etap</th><th>Stan</th><th>Dowód</th></tr></thead>
+<tbody>
+<tr><td>NL → intent (frazy docs)</td><td><strong>Działa</strong></td><td><code>subactor ask … --json</code> → pack SSOT / <code>docs-httpdocs-sync.pl.aql</code> (<code>source=intent-pack-registry</code> po unit 3; wcześniej <code>nlp-uri-phrase</code>)</td></tr>
+<tr><td>Intent → ticket + plan</td><td><strong>Działa</strong></td><td>Ticket <code>PLF-353</code>, plan <code>proposed</code> (bez <code>--execute</code>)</td></tr>
+<tr><td>Plan → AQL</td><td><strong>Działa</strong> (founder)</td><td><code>founder_admin_bypass</code> przy <code>SUBACTOR_ADMIN_TOKEN</code></td></tr>
+<tr><td>Dry-run deploy</td><td><strong>Działa</strong></td><td>Recipe <code>docs-httpdocs-sync</code>: methods + sync plan (~12 plików)</td></tr>
+<tr><td>Live apply</td><td><strong>Częściowo</strong></td><td>Brama apply/grant OK; SFTP OK; formalny origin release <code>rel_20260718T085927Z_a7f1328e</code> na docs docroot; cert + DNS HITL</td></tr>
+<tr><td>Verify HTTPS publiczne</td><td><strong>Fail / mismatch</strong></td><td><code>docs.subactor.com</code> → <strong>GitHub Pages</strong>, nie Plesk; TLS SAN bez <code>docs.subactor.com</code></td></tr>
+<tr><td>Zamknięcie pętli NL</td><td><strong>Częściowe</strong></td><td>Intent+plan OK; brak wiarygodnego „opublikowano i widać na HTTPS”</td></tr>
+</tbody></table>
+<h3>Mapa stacku (skrót)</h3>
+<table>
+<thead><tr><th>Warstwa</th><th>Rola</th><th>Uwaga</th></tr></thead>
+<tbody>
+<tr><td>Founder CLI <code>subactor</code></td><td>Health, ask, tickets, plans</td><td>Control <code>:8091</code> healthy</td></tr>
+<tr><td>Orchestrator <code>subactor-run</code></td><td>Recipe / topo URI</td><td>Dry-run domyślnie</td></tr>
+<tr><td>urirun-node</td><td><code>plesk://…</code> HOW</td><td>SFTP: paramiko in image (PR6); FTP: available; prod publish requires SFTP</td></tr>
+<tr><td>Vault / credentials</td><td>Lease do FTP/SFTP</td><td>Nie logowane; apply zależy od vault+transport</td></tr>
+<tr><td>DNS / TLS</td><td>Prawda „co serwuje domenę”</td><td>docs ≠ subactor.com (Plesk <code>217.160.250.222</code>)</td></tr>
+</tbody></table>
+<p><strong>OpenRouter / LLM:</strong> tylko intent (opcjonalnie). Upload jest deterministyczny (connector + vault + <code>PLESK_SYNC_APPLY</code>).</p>
+<p><strong>Poza zakresem tego dokumentu:</strong> self-evolution (system przepisujący własny kod, kontrakty lub politykę bez ludzkiego procesu change).</p>
+<hr />
+<h2>2. Wyniki testów (2026-07-18)</h2>
+<p>Środowisko: lokalny Docker platform (hr-control, planfile, urirun-node, …); founder token załadowany z <code>platform/.env</code> (wartość <strong>nie</strong> zapisana tutaj).</p>
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Wynik</th><th>Fakty (bez sekretów)</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>subactor health</code></td><td><strong>PASS</strong></td><td><code>{&quot;ok&quot;:true,&quot;service&quot;:&quot;organization-control&quot;}</code></td></tr>
+<tr><td>2</td><td><code>subactor ask &quot;…&quot; --json</code></td><td><strong>PASS</strong></td><td><code>source=intent-pack-registry</code> (unit 3) lub legacy <code>nlp-uri-phrase</code>, model <code>docs-httpdocs-sync.pl.aql</code>, situation <code>docs</code> → <code>docs.subactor.com</code></td></tr>
+<tr><td>3</td><td><code>subactor ask &quot;…&quot;</code> (propose)</td><td><strong>PASS</strong></td><td>Ticket <code>PLF-353</code>, plan <code>plan_mrpyf6eq_53aae9b275</code>, status <code>proposed</code></td></tr>
+<tr><td>4</td><td>Recipe dry-run <code>docs-httpdocs-sync.urirun.json</code></td><td><strong>PASS</strong></td><td>Methods OK; dry-run <code>files_planned=12</code>; recommended transport <code>ftp</code></td></tr>
+<tr><td>5</td><td>Recipe <code>--execute</code> <strong>bez</strong> <code>PLESK_SYNC_APPLY</code></td><td><strong>PASS (brama)</strong></td><td>Apply step: <code>plesk_sync_apply_required</code> — upload zablokowany zgodnie z polityką</td></tr>
+<tr><td>6</td><td>Live apply z <code>PLESK_SYNC_APPLY=1</code></td><td><strong>PASS (origin)</strong></td><td>Formal release-upload→activate na <code>/docs.subactor.com</code> (grants+plan_hash); bramy wyczyszczone po apply; cert nadal HITL</td></tr>
+<tr><td>7</td><td><code>https://docs.subactor.com/</code> (strict TLS)</td><td><strong>FAIL</strong></td><td>curl 60: cert <code>CN=*.github.io</code>, brak SAN dla <code>docs.subactor.com</code></td></tr>
+<tr><td>8</td><td>Treść / kto serwuje (curl <code>-k</code>)</td><td><strong>INFO</strong></td><td><code>server: GitHub.com</code>, Jekyll; CNAME → <code>subactor.github.io</code> / <code>185.199.*</code></td></tr>
+<tr><td>9</td><td>Porównanie <code>subactor.com</code></td><td><strong>INFO</strong></td><td>A → <code>217.160.250.222</code> (Plesk); docs <strong>nie</strong> wskazuje Pleska</td></tr>
+<tr><td>10</td><td>Kontener urirun: paramiko / doctor</td><td><strong>PASS</strong></td><td>paramiko <strong>yes</strong>; doctor <code>production_publish_ready=true</code>; methods sftp+ftp ok</td></tr>
+<tr><td>11</td><td>Apply deny bez grant/kill</td><td><strong>PASS</strong></td><td><code>--execute</code> → <code>autonomy_mutations_disabled</code></td></tr>
+<tr><td>12</td><td>Drift + sync <code>--check</code> + unit</td><td><strong>PASS</strong>*</td><td>sync OK po align step-catalog; core sibling vs pin wymaga bump; orchestrator 24/24; plesk 64/64</td></tr>
+</tbody></table>
+<p><strong>Wniosek:</strong> ścieżka <strong>NL → intent → ticket/plan → dry-run</strong> jest żywa. Ścieżka <strong>apply → publiczne HTTPS na Plesku</strong> nie jest zamknięta (DNS/TLS + transport/timeout). <strong>Nie twierdzimy o udanym live publish.</strong></p>
+<hr />
+<h2>3. Problemy ops</h2>
+<table>
+<thead><tr><th>Problem</th><th>Objaw</th><th>Skutek dla autonomii</th></tr></thead>
+<tbody>
+<tr><td>DNS docs → GitHub Pages</td><td>CNAME <code>subactor.github.io</code></td><td>Sync do Plesk httpdocs nie zmienia tego, co widzi świat</td></tr>
+<tr><td>TLS SAN mismatch</td><td>Cert <code>*.github.io</code> vs hostname <code>docs.subactor.com</code></td><td>Strict verify / automatyczny health check pada</td></tr>
+<tr><td>Brak paramiko w urirun-node</td><td>~~<code>sftp.available=false</code>~~ → <strong>fixed</strong> (Compose rebuild 2026-07-18)</td><td>SFTP ready; FTP fallback nadal opt-in</td></tr>
+<tr><td>Timeout apply (~30s)</td><td>Live FTP sync fail</td><td>Recipe <code>--execute</code> z bramą i tak nie domyka publish</td></tr>
+<tr><td><code>PLESK_SYNC_APPLY</code> unset</td><td>Domyślnie bezpiecznie</td><td>Founder musi świadomie ustawić bramę na nodzie</td></tr>
+<tr><td>Docroot <code>/httpdocs</code></td><td>Recipe targetuje primary httpdocs</td><td>Preferuj subdomain docroot <code>/docs.subactor.com</code> (utworzony 2026-07-18)</td></tr>
+<tr><td>Domain/subscription preflight</td><td>Brak automatycznego kroku „domena + TLS na Plesku”</td><td>NL obiecuje publish bez gwarancji infrastruktury</td></tr>
+<tr><td>Vault ensure</td><td>Często ręczne</td><td>Autonomia urywa się na brakującym <code>plesk-sftp</code> / FTP</td></tr>
+<tr><td>urirun-lan-gateway unhealthy</td><td>Docker status</td><td>Potencjalny szum ops / ścieżki LAN</td></tr>
+<tr><td>Secrets ownership</td><td>Tokeny w <code>.env</code>, vault w browser-agent</td><td>Brak jasnego „kto rotuje / kto lease’uje z CLI”</td></tr>
+</tbody></table>
+<hr />
+<h2>4. Problemy produktowe / platformowe (nie ops)</h2>
+<p>Krótko — szczegóły w <a href="./intent-orchestration-and-fallbacks.html"><code>intent-orchestration-and-fallbacks.md</code></a>:</p>
+<table>
+<thead><tr><th>Problem</th><th>Skutek</th></tr></thead>
+<tbody>
+<tr><td>Intent wiring zduplikowany (frazy, AQL, step-catalog, recipe, Planfile)</td><td><strong>Partial (PR3):</strong> pack SSOT + derived sync; Planfile nadal osobno</td></tr>
+<tr><td>Brak intent pack SSOT</td><td><strong>Closed (PR2):</strong> registry istnieje; dual-run do PR10</td></tr>
+<tr><td>Orchestrator NL stub ≠ pełna multi-step recipe</td><td><code>--nl</code> nie zastępuje ticketu z <code>uri_processes</code></td></tr>
+<tr><td>Fail-fast <code>runTask</code> bez <code>optional</code> / <code>on_fail</code></td><td><strong>Closed (PR4 core)</strong> — hardening ticket/rollback w toku</td></tr>
+<tr><td>Kontrakty autonomii w API to głównie TestQL onboarding</td><td>Brak produkcyjnego kontraktu „docs publish”</td></tr>
+<tr><td>Multi-goal NL (treść + publish) niepełne</td><td>Intent trafia w sync; generacja treści nie jest w tym samym łańcuchu</td></tr>
+<tr><td>Misroute LLM bez trafienia frazy</td><td>Historycznie modele onboardingowe — łata phrase map + packs</td></tr>
+</tbody></table>
+<hr />
+<h2>5. Pytania do rozstrzygnięcia</h2>
+<p>Checklist decyzji pod <strong>pełną autonomię poza self-evolution</strong>. <em>(Self-evolution: out of scope — jawnie wykluczone.)</em> Evidence implementacji: <a href="./autonomy-implementation-status.html"><code>autonomy-implementation-status.md</code></a>.</p>
+<h3>Governance / apply</h3>
+<ul>
+<li>[x] <strong>Kto zatwierdza apply?</strong> → <a href="./adr/003-approval-hitl-model.html">ADR-003</a> <strong>Accepted</strong> (kill switch + signed grant; founder ≠ grant).</li>
+<li>[x] <strong>Dry-run zawsze przed apply?</strong> → ADR-003 (immutable manifest; kill switch ≠ jedyna autoryzacja).</li>
+<li>[x] <strong>Human-in-the-loop when?</strong> → ADR-003 (boundary/governance HITL; reversible zero-touch po dry-run+grant).</li>
+</ul>
+<h3>Prawda domeny i weryfikacja</h3>
+<ul>
+<li>[x] <strong>Gdzie żyje prawda DNS/domen?</strong> → <a href="./adr/002-dns-ssot.html">ADR-002</a> <strong>Accepted</strong>.</li>
+<li>[x] <strong>Monitoring / verify obowiązkowe?</strong> → <a href="./adr/004-publish-definition-of-done.html">ADR-004</a> <strong>Accepted</strong>.</li>
+<li>[x] <strong>GitHub Pages vs Plesk:</strong> → ADR-002 (<code>docs → Plesk</code>); Pages ≠ healthy content LKG.</li>
+</ul>
+<h3>Zdolności i connectorzy</h3>
+<ul>
+<li>[x] <strong>Jakie capability muszą być w connectorach zanim NL może obiecać wynik?</strong></li>
+</ul>
+<p>Pack <code>required_capabilities</code> ⊆ live <code>plesk://host/doctor/query/report</code> <strong>and</strong> ⊆ AQL (catalog capability→OQL/URI + actor contract allows; CI <code>--aql-only</code>). Control ask/propose + <code>POST /api/apply-grants</code> fail-closed (<code>capability_unavailable</code> / <code>preflight_failed</code> / <code>capability_not_in_aql</code>). See <a href="./capability-tooling-evaluation.html">capability-tooling-evaluation.md</a>. <strong>Nie</strong> wymaga <code>letsencrypt</code> (brak claimu publicznego LE).</p>
+<ul>
+<li>[x] <strong>Paramiko / SFTP w obrazie urirun-node</strong> — paramiko w Dockerfile; FTP tylko fallback (<code>PLESK_SYNC_ALLOW_FTP_FALLBACK=1</code>) (PR6).</li>
+<li>[x] <strong>Timeout / retries (connector budgets):</strong> connect/op/total 15/120/180 (PR6); orchestrator <code>timeout_ms</code>/<code>retry</code> (PR4).</li>
+<li>[x] <strong>Release upload / activate / rollback</strong> — <strong>PR7</strong> (<code>release-upload</code> / <code>verify</code> / <code>activate</code> / <code>current</code> / <code>rollback</code>; strategy <code>auto|symlink|pointer</code>).</li>
+<li>[x] <strong>DNS/TLS + content fingerprint verify</strong> — <strong>PR8</strong> (<code>publish-verify</code> ladder; mocks + origin/<code>--resolve</code>; staging note <code>docs-stage.subactor.com</code>).  </li>
+<li>[ ] <strong>DNS cutover Pages → Plesk</strong> — <strong>PR9</strong> (<strong>blocked</strong> 2026-07-18: G1 green — formal origin release; G2 cert; G6 HITL). <strong>No production DNS flip.</strong></li>
+<li>[ ] <strong>Legacy resolver / dual-run cleanup</strong> — <strong>PR10 in progress</strong> (cold FALLBACK removed; <code>INTENT_PACK_DUAL_RUN=shadow</code> retained; see <code>docs/deployment/PR10-legacy-resolver-cleanup.md</code>).</li>
+</ul>
+<h3>Secrets / vault</h3>
+<ul>
+<li>[x] <strong>Ownership sekretów?</strong> → <a href="./adr/006-secrets-ownership.html">ADR-006</a> <strong>Accepted</strong>.</li>
+<li>[x] <strong>Ensure SFTP → vault</strong> → ADR-006 (<code>needs_human</code> bez credential).</li>
+</ul>
+<h3>Scope produktu</h3>
+<ul>
+<li>[x] <strong>Scope katalog intent packs?</strong> → <a href="./adr/001-autonomy-scope.html">ADR-001</a> <strong>Accepted</strong>.</li>
+<li>[x] <strong>Rollback / failure semantics?</strong> → <a href="./adr/005-rollback.html">ADR-005</a> <strong>Accepted</strong>.</li>
+</ul>
+<h3>Poza zakresem (nie rozstrzygamy tu)</h3>
+<ul>
+<li>Self-evolution: auto-zmiana kodu, kontraktów AQL, allowlist, lub polityki</li>
+</ul>
+<p>autonomii przez samego agenta — <strong>wykluczone</strong>.</p>
+<hr />
+<h2>6. Definition of done — „pełna autonomia (bez ewolucji)”</h2>
+<p>Mierzalne kryteria. Wszystkie muszą być prawdziwe dla reprezentatywnego celu (np. docs publish) <strong>oraz</strong> dla nowego celu z katalogu intent packs bez ręcznego „sklejania” N plików poza packiem.</p>
+<table>
+<thead><tr><th>#</th><th>Kryterium</th><th>Jak zmierzyć</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td>NL founder → poprawny named intent bez OpenRouter (phrase) lub z LLM tylko przy braku frazy</td><td><code>subactor ask --json</code> → oczekiwany <code>model_name</code></td></tr>
+<tr><td>D2</td><td>Intent → ticket z pełnym <code>uri_processes</code> (nie pojedynczy URI stub)</td><td>Planfile / plan proposed z multi-step</td></tr>
+<tr><td>D3</td><td>Dry-run zawsze przed live mutate</td><td>Recipe/policy; assert w TestQL</td></tr>
+<tr><td>D4</td><td>Live apply tylko przy jawnej bramie + kontrakcie/aktorze</td><td>Bez <code>PLESK_SYNC_APPLY</code> → <code>plesk_sync_apply_required</code>; z bramą → upload OK</td></tr>
+<tr><td>D5</td><td>Wymagane connector capability green przed obietnicą sukcesu</td><td>Preflight: methods, vault, domain, TLS</td></tr>
+<tr><td>D6</td><td>Publiczny verify po apply</td><td><code>curl -fsS https://&lt;domain&gt;/</code> HTTP 200 + oczekiwany fingerprint treści</td></tr>
+<tr><td>D7</td><td>DNS/TLS zgodne z celem publish</td><td>Dig + cert SAN zawierają hostname</td></tr>
+<tr><td>D8</td><td>Failure → ticket / escalate, nie ciche <code>ok</code></td><td>Status planu + Planfile history</td></tr>
+<tr><td>D9</td><td>Zero sekretów w ticketach, recipe, logach NL</td><td>Audit / grepowalne ścieżki</td></tr>
+<tr><td>D10</td><td>Nowy cel z intent pack bez driftu N kopii</td><td>Jeden pack → phrases + allow + recipe ref</td></tr>
+<tr><td>D11</td><td>Self-evolution wyłączone</td><td>Brak URI/procesu „rewrite self”; change tylko przez ludzki change process</td></tr>
+</tbody></table>
+<p><strong>Minimum dla docs.subactor.com:</strong> D1–D9 spełnione przy DNS→Plesk (lub świadomej decyzji „zostajemy na GitHub Pages” i wtedy sync Plesk <strong>nie</strong> jest częścią DoD publicznego HTTPS).</p>
+<hr />
+<h2>7. Powiązane dokumenty</h2>
+<table>
+<thead><tr><th>Doc</th><th>Rola</th></tr></thead>
+<tbody>
+<tr><td><a href="../autonomy-cli-runbook.html"><code>../autonomy-cli-runbook.md</code></a></td><td>CLI / pętla NL→URI</td></tr>
+<tr><td><a href="../plans/docs-subactor-com-publish.html"><code>../plans/docs-subactor-com-publish.md</code></a></td><td>Plan + wcześniejsze wyniki testów publish</td></tr>
+<tr><td><a href="../deployment/PLESK.html"><code>../deployment/PLESK.md</code></a></td><td>Ops path docs → httpdocs</td></tr>
+<tr><td><a href="../deployment/docs-httpdocs-sync.urirun.json"><code>../deployment/docs-httpdocs-sync.urirun.json</code></a></td><td>Recipe dry-run/apply</td></tr>
+<tr><td><a href="./intent-orchestration-and-fallbacks.html"><code>intent-orchestration-and-fallbacks.md</code></a></td><td>Intent packs, policy, fallbacki</td></tr>
+<tr><td><a href="./autonomy-recommended-solution.html"><code>autonomy-recommended-solution.md</code></a></td><td>Kanoniczna rekomendacja autonomii</td></tr>
+<tr><td><a href="./adr/README.html"><code>adr/README.md</code></a></td><td>ADR Phase 0 (do akceptacji)</td></tr>
+<tr><td><a href="../plans/autonomy-implementation-roadmap.html"><code>../plans/autonomy-implementation-roadmap.md</code></a></td><td>Fazy 0–8 + kolejność zmian</td></tr>
+<tr><td><a href="../plans/intent-capability-fallbacks.html"><code>../plans/intent-capability-fallbacks.md</code></a></td><td>Krótka nota planowa</td></tr>
+<tr><td><a href="../../platform/docs/URI_PROCESS_AUTONOMY.html"><code>../../platform/docs/URI_PROCESS_AUTONOMY.md</code></a></td><td>AQL / OQL / URI</td></tr>
+<tr><td><a href="../../platform/docs/AUTONOMY_CONTRACTS.html"><code>../../platform/docs/AUTONOMY_CONTRACTS.md</code></a></td><td>Kontrakty autonomii</td></tr>
+<tr><td><a href="../../www/deployment/PLESK.html"><code>../../www/deployment/PLESK.md</code></a></td><td>Wzorzec www → subactor.com (działający)</td></tr>
+</tbody></table>
+<hr />
+<p><em>Wygenerowano po praktycznych testach CLI/recipe/DNS (2026-07-18). Bez sekretów.</em></p>
+</main>
+</body>
+</html>

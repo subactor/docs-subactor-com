@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plan: docs → docs.subactor.com (NL → publish) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Plan: docs → docs.subactor.com (NL → publish)</h1>
+<p>Goal: make this founder CLI prompt work end-to-end:</p>
+<pre><code class="language-bash">subactor ask &quot;stwórz dokumentację w folderze docs i opublikuj na docs.subactor.com&quot;</code></pre>
+<p>Mirror of the proven <strong>www → subactor.com</strong> path (<code>www/deployment/PLESK.md</code>).</p>
+<h2>Steps (implementation order)</h2>
+<table>
+<thead><tr><th>#</th><th>Work</th><th>Status target</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Allowlist basename <code>docs</code> in bridge planner + urirun-connector-plesk <code>_source_allowed</code></td><td>required</td></tr>
+<tr><td>2</td><td>Recipe <code>docs/deployment/docs-httpdocs-sync.urirun.json</code> + Planfile import</td><td>required</td></tr>
+<tr><td>3</td><td>NL phrases in <code>agents/nlp-uri-phrases.yaml</code> + deterministic control intent (<code>docs-sync-intent</code>)</td><td>required</td></tr>
+<tr><td>4</td><td>AQL model <code>docs-httpdocs-sync.pl.aql</code> + llm-organization-intents + step-catalog + bot ALLOW MODEL</td><td>required</td></tr>
+<tr><td>5</td><td>Minimal public landing <code>docs/index.html</code> (do not wipe existing markdown)</td><td>required</td></tr>
+<tr><td>6</td><td>Domain on Plesk + DNS (today CNAME → GitHub Pages; Plesk needs A/CNAME → subscription)</td><td>ops</td></tr>
+<tr><td>7</td><td>Dry-run sync → apply with <code>PLESK_SYNC_APPLY=1</code> + founder token</td><td>test</td></tr>
+<tr><td>8</td><td>Verify <code>https://docs.subactor.com/</code> (TLS SAN must include docs host)</td><td>verify</td></tr>
+</tbody></table>
+<h2>Pipeline</h2>
+<pre><code class="language-text">NL (subactor ask)
+  → deterministic phrase / intent model docs-httpdocs-sync.pl.aql
+  → Planfile ticket uri_processes (methods → dry-run → apply)
+  → AQL gate (project-operator / founder bypass)
+  → urirun plesk://host/site/command/sync
+  → SFTP/FTP upload to docs.subactor.com /httpdocs</code></pre>
+<p>OpenRouter / llm-gateway: <strong>intent only</strong>. Upload is connector + vault + apply env gate.</p>
+<h2>Safety</h2>
+<ul>
+<li>Default dry-run (<code>apply=false</code>)</li>
+<li>Live write only with <code>PLESK_SYNC_APPLY=1</code></li>
+<li>Source allowlist: <code>www</code> <strong>or</strong> <code>docs</code> (or <code>PLESK_SYNC_ALLOWED_SOURCES</code>)</li>
+<li>No secrets in tickets / recipes / this plan</li>
+</ul>
+<h2>Operator commands</h2>
+<pre><code class="language-bash"># Intent only
+subactor ask &quot;stwórz dokumentację w folderze docs i opublikuj na docs.subactor.com&quot; --json
+
+# Deterministic recipe (dry-run)
+cd ~/github/subactor/orchestrator
+node bin/subactor-run.mjs --recipe ../docs/deployment/docs-httpdocs-sync.urirun.json
+
+# Live apply (urirun-node host)
+export PLESK_SYNC_APPLY=1
+node bin/subactor-run.mjs --recipe ../docs/deployment/docs-httpdocs-sync.urirun.json --execute</code></pre>
+<h2>DNS note</h2>
+<p>As of this plan, <code>docs.subactor.com</code> resolves to GitHub Pages (<code>*.github.io</code>). Plesk publish writes the subscription <code>httpdocs</code> for that domain name; public HTTPS only shows Plesk content after DNS (and TLS cert) point at the Plesk host (same pattern as <code>subactor.com</code> → <code>217.160.250.222</code>).</p>
+<h2>Test results (2026-07-18)</h2>
+<table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>subactor ask &quot;…&quot; --json</code></td><td>OK — <code>docs-httpdocs-sync.pl.aql</code>, deterministic phrase map</td></tr>
+<tr><td><code>subactor ask &quot;…&quot;</code></td><td>OK — ticket <code>PLF-352</code>, plan proposed</td></tr>
+<tr><td>Recipe dry-run (<code>docs-httpdocs-sync.urirun.json</code>)</td><td>OK — methods + sync plan (~10 files), FTP available</td></tr>
+<tr><td>Live apply (<code>PLESK_SYNC_APPLY=1</code>)</td><td>FAIL — urirun subprocess <strong>timeout 30s</strong> on FTP upload (vault/FTP path)</td></tr>
+<tr><td><code>https://docs.subactor.com/</code></td><td>Serves <strong>GitHub Pages</strong> (Jekyll); TLS SAN mismatch on strict verify</td></tr>
+</tbody></table>
+<p>Ops follow-ups: add <code>docs.subactor.com</code> on Plesk + DNS/TLS; raise urirun exec timeout or fix FTP/SFTP (paramiko) for apply; prefer addon docroot <code>/docs.subactor.com</code> so primary <code>/httpdocs</code> is not overwritten.</p>
+<h2>Powiązane (rekomendacja autonomii)</h2>
+<ul>
+<li>Kanoniczna rekomendacja: <a href="../architecture/autonomy-recommended-solution.html"><code>../architecture/autonomy-recommended-solution.md</code></a></li>
+<li>Roadmapa (faza 7 migracji + PR 9): <a href="./autonomy-implementation-roadmap.html"><code>autonomy-implementation-roadmap.md</code></a></li>
+<li>Status + pytania: <a href="../architecture/autonomy-ops-status-and-open-questions.html"><code>../architecture/autonomy-ops-status-and-open-questions.md</code></a></li>
+<li>ADR DNS / DoD / rollback: <a href="../architecture/adr/README.html"><code>../architecture/adr/README.md</code></a></li>
+</ul>
+</main>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Testowanie intentów i wyników deployu — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Testowanie intentów i wyników deployu</h1>
+<p><strong>Status:</strong> nota architektoniczna (pointer). <strong>Data:</strong> 2026-07-18 <strong>Kanoniczne modele:</strong> <a href="./autonomy-recommended-solution.html"><code>autonomy-recommended-solution.md</code></a>, <a href="./intent-orchestration-and-fallbacks.html"><code>intent-orchestration-and-fallbacks.md</code></a>, <a href="./autonomy-ops-status-and-open-questions.html"><code>autonomy-ops-status-and-open-questions.md</code></a> (D1–D11). <strong>EQL:</strong> <a href="https://github.com/subactor/eql/blob/main/docs/SUBACTOR_KORU_INTEGRATION.md"><code>subactor/eql</code> SUBACTOR_KORU_INTEGRATION.md</a>. <strong>Koru (governance shapes):</strong> <code>semcod/koru</code> → <code>docs/architecture/autonomy-determinism-refactor-plan.md</code>.</p>
+<h2>Werdykt (1 akapit)</h2>
+<p><strong>TestQL nie zastępuje</strong> pętli autonomy (pack → preflight → dry-run → grant → apply → origin/public verify). Jest dobry jako <strong>orkiestrator scenariuszy</strong> (CLI/API/GUI/desktop) i bramka metryk projektu (<a href="../platform/TESTQL_PROJECT_GATES.html"><code>TESTQL_PROJECT_GATES.md</code></a>). Prawda intentów, capability, <code>plan_hash</code>/grant i fingerprint należy do **orchestrator / connector / Control / EQL tests** — TestQL może je wywołać i asertować kody wyjścia / JSON, nie powinien być SSOT tych kontraktów.</p>
+<h2>Ownership (kto czym włada)</h2>
+<table>
+<thead><tr><th>Warstwa</th><th>Właściciel testów</th><th>Artefakt</th></tr></thead>
+<tbody>
+<tr><td>NL → pack id / slots</td><td>Control + pack registry unit</td><td><code>ask --json</code> → <code>pack_id</code>, <code>model_name</code>, <code>status</code></td></tr>
+<tr><td>Dual-run default</td><td>Control + agents</td><td><code>INTENT_PACK_DUAL_RUN=shadow</code> (retain until metrics); pack-only ≠ drift</td></tr>
+<tr><td>Capability preflight</td><td>Connector doctor + pack <code>required_capabilities</code> ⊆ AQL</td><td><code>status: capability_unavailable</code> / <code>preflight_failed</code> + CI ⊆-check</td></tr>
+<tr><td>Dry-run / <code>plan_hash</code> / grant / jti</td><td>Orchestrator + Control apply-grants</td><td>deny codes ADR-003; grant <code>status: authorized</code></td></tr>
+<tr><td>Origin vs public verify / fingerprint</td><td>Connector <code>publish-verify</code> + orchestrator stages</td><td><code>applied_unverified</code> ≠ <code>completed</code></td></tr>
+<tr><td>EQL determinism (<code>eqlHash</code> / <code>artifactHash</code>)</td><td><code>@subactor/eql</code> matrix (mock); grant may echo advisory <code>eql_hash</code></td><td>przed bind do <code>plan_hash</code></td></tr>
+<tr><td>GUI / IDE / health smoke</td><td>TestQL (+ Koru MCP)</td><td><code>*.testql.toon.yaml</code></td></tr>
+<tr><td>Evidence bundle / import gates</td><td>TestQL project gates + Planfile</td><td>preflight/postflight suite</td></tr>
+</tbody></table>
+<h2>Co TestQL ma / czego brakuje</h2>
+<table>
+<thead><tr><th>Potrzeba</th><th>TestQL dziś</th><th>Luka</th></tr></thead>
+<tbody>
+<tr><td>Intent pack selection</td><td>Pośrednio: <code>SHELL</code>/<code>EXEC</code> + assert JSON</td><td>Brak natywnych kroków <code>INTENT_*</code> / pack fixtures</td></tr>
+<tr><td>Capability preflight (np. historyczny brak ssl-ensure)</td><td>Może wołać doctor CLI</td><td>Brak deklaratywnego <code>EXPECT capability.X == ready</code> powiązanego z packiem</td></tr>
+<tr><td>Dry-run / grant gates</td><td>Może uruchomić recipe</td><td>Brak typów asercji <code>plan_hash_mismatch</code> / grant deny</td></tr>
+<tr><td>Origin vs public verify</td><td>HTTP assert możliwy</td><td>Brak ladder DoD (<code>dns</code>/<code>tls</code>/<code>fingerprint</code> → <code>applied_unverified</code>)</td></tr>
+<tr><td>EQL hash ladder</td><td>Można owinąć skrypt</td><td>Brak pierwszoklasowego <code>EQL_DETERMINISM</code></td></tr>
+</tbody></table>
+<p><strong>Rekomendacja:</strong> rozszerzać TestQL tylko o <strong>cienkie asserty wyjścia</strong> (status planu, deny code, fingerprint JSON) + scenariusze smoke; logikę kontraktów zostawić w orchestrator/connector/EQL. Nie budować drugiego silnika deployu w TestQL.</p>
+<h2>Minimalne macierze (CI)</h2>
+<h3>Intenty</h3>
+<ol>
+<li>Phrase → pack (bez OpenRouter).  </li>
+<li>LLM fallback → ten sam pack (shadow dual-run).  </li>
+<li>Złe sloty → reject (nie expand URI).  </li>
+<li>Pack <code>required_capabilities</code> ⊆ AQL (CI).  </li>
+<li>Preflight red → brak obietnicy sukcesu NL.</li>
+</ol>
+<h3>Deploy results</h3>
+<ol>
+<li>Dry-run → <code>manifest</code> + <code>plan_hash</code>.  </li>
+<li>Apply bez grant / kill → deny.  </li>
+<li>Grant + matching hash → origin upload/activate.  </li>
+<li>Public verify fail → <code>applied_unverified</code> (nigdy fake <code>ok</code>).  </li>
+<li>Stale fingerprint → rollback lub ticket.  </li>
+<li>(Opcjonalnie) EQL core/mock determinism przed grantem.</li>
+</ol>
+<h2>Semcod — co przejąć algorytmicznie</h2>
+<ul>
+<li><strong>Koru</strong> — intent pack + capability SSOT, grant/<code>plan_hash</code>, hard verify (ADR-AD-*).  </li>
+<li><strong>Intract</strong> — kontrakty intent na artefaktach (kod/CI/Dockerfile), nie runtime URI.  </li>
+<li><strong>EQL</strong> — SemanticPatch allowlist + hash ladder przed apply.  </li>
+<li><strong>Regix / Pyqual / Vallm</strong> — bramki jakości kodu, nie publish DoD.  </li>
+<li><strong>Redeploy / Rebuild</strong> — ops recipes; weryfikacja przez connector verify, nie GUI.</li>
+</ul>
+</main>
+</body>
+</html>

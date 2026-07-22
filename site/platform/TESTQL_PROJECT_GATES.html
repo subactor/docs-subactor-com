@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TestQL jako bramka projektu — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>TestQL jako bramka projektu</h1>
+<p>TestQL w tej wersji jest małym, deterministycznym runtime'em do testowania metryk i warunków projektu.</p>
+<h2>Składnia</h2>
+<pre><code class="language-testql">VERSION: 1
+SUITE project_readiness &quot;Gotowość projektu&quot;:
+  TEST markdown &quot;Wiedza jest kompletna&quot;:
+    EXPECT metrics.markdown_chars &gt;= 1000
+  TEST processes &quot;Procesy istnieją&quot;:
+    EXPECT metrics.process_count &gt;= 17</code></pre>
+<p>Operatory:</p>
+<pre><code class="language-text">== != &gt; &gt;= &lt; &lt;= contains exists</code></pre>
+<h2>Bramka importu</h2>
+<p>Import jest oznaczany jako <code>completed</code> tylko wtedy, gdy TestQL potwierdzi minimalną jakość. W przeciwnym razie otrzymuje <code>needs_review</code>.</p>
+<h2>Bramka wykonania OQL</h2>
+<p>Ostatni krok planu biznesowego uruchamia <code>testql.project.run</code>. Bridge pobiera bieżący workspace, oblicza metryki, zapisuje <code>test_run</code> i przerywa plan, jeśli test nie przejdzie.</p>
+<h2>Evidence Bundle</h2>
+<p>Dla dalszego rozwoju rekomendowany jest pakiet dowodowy:</p>
+<pre><code class="language-json">{
+  &quot;project_id&quot;: &quot;...&quot;,
+  &quot;import_id&quot;: &quot;...&quot;,
+  &quot;source_hash&quot;: &quot;...&quot;,
+  &quot;aql_model&quot;: &quot;project-business-bootstrap.pl.aql&quot;,
+  &quot;decision_id&quot;: &quot;...&quot;,
+  &quot;oql_hash&quot;: &quot;...&quot;,
+  &quot;approved_by&quot;: &quot;...&quot;,
+  &quot;preflight_test_run&quot;: &quot;...&quot;,
+  &quot;postflight_test_run&quot;: &quot;...&quot;,
+  &quot;outcome_measurements&quot;: [],
+  &quot;rollback_reference&quot;: &quot;...&quot;
+}</code></pre>
+<p>Wersja developerska przechowuje podstawowe rekordy <code>evidence</code>, <code>test_suites</code>, <code>test_runs</code>, <code>outcomes</code> i hash OQL. W produkcji należy dodać podpisy, trwałą bazę i retencję.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stan kodu i plan refaktoru (code2llm) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Stan kodu i plan refaktoru (code2llm)</h1>
+<p><strong>Data indeksu:</strong> 2026-07-17 <strong>Źródła:</strong> <code>project/analysis.toon.yaml</code>, <code>project/map.toon.yaml</code>, <code>project/evolution.toon.yaml</code>, <code>project/planfile-tickets.yaml</code></p>
+<h2>Źródło prawdy (monorepo workspace)</h2>
+<table>
+<thead><tr><th>Ścieżka</th><th>Rola</th></tr></thead>
+<tbody>
+<tr><td><code>core/</code>, <code>agents/</code>, <code>connectors/</code>, <code>runtime/</code>, <code>contracts/</code>, …</td><td>Kanoniczne repozytoria komponentów (osobne <code>.git</code>)</td></tr>
+<tr><td><code>platform/components/&lt;name&gt;/</code></td><td><strong>Submoduły</strong> montowane do assembly deploy (<code>gitdir: …/modules/components/…</code>)</td></tr>
+<tr><td><code>platform/</code></td><td>Docker Compose, config, skrypty, dokumentacja operacyjna</td></tr>
+</tbody></table>
+<p><strong>Zasada edycji:</strong> zmiany logiki w kanonicznym komponencie <strong>i</strong> w odpowiadającym submodule <code>platform/components/*</code> (workspace trzyma oba drzewa; testy platformy importują z <code>components/</code>).</p>
+<p>Skan code2llm widzi obie kopie — metryki CC/duplikacji są <strong>sztucznie podwojone</strong>. Przy triażu ticketów planfile bierz ścieżki bez prefiksu <code>platform/components/</code>.</p>
+<h2>Metryki (indeks 2026-07-17)</h2>
+<table>
+<thead><tr><th>Metryka</th><th>Skan surowy</th><th>Po deduplikacji lustra</th></tr></thead>
+<tbody>
+<tr><td>LOC</td><td>~52 382</td><td>~26 645</td></tr>
+<tr><td>Funkcje</td><td>5 063</td><td>—</td></tr>
+<tr><td>Moduły</td><td>409–427</td><td>~238 kanonicznych</td></tr>
+<tr><td>CC̄</td><td>3.9</td><td>—</td></tr>
+<tr><td>high-CC (≥15)</td><td>226+</td><td>połowa to mirror</td></tr>
+<tr><td>Cykle importów</td><td>0</td><td>OK</td></tr>
+</tbody></table>
+<p><strong>Języki:</strong> JavaScript/MJS dominuje, potem PHP (portal, site-generator), shell, mało Pythona.</p>
+<h2>Hotspoty (kolejność refaktoru)</h2>
+<table>
+<thead><tr><th>Priorytet</th><th>Plik</th><th>Problem</th></tr></thead>
+<tbody>
+<tr><td>P0</td><td><code>core/.../control/src/server.mjs</code></td><td>~1038 L, handler <code>server</code> CC≈280, fan-out≈91</td></tr>
+<tr><td>P0</td><td><code>connectors/.../bridge/src/server.mjs</code></td><td>~1313 L, <code>execute</code> CC≈72</td></tr>
+<tr><td>P0</td><td><code>core/.../control/public/app.js</code></td><td>~2485 L monolit UI</td></tr>
+<tr><td>P1</td><td><code>core/.../control/src/delegation-manager.mjs</code></td><td><code>delegationDecision</code> CC≈57, <code>normalize…</code> CC≈32</td></tr>
+<tr><td>P1</td><td><code>org-core/.../server.mjs</code></td><td>CC≈46</td></tr>
+<tr><td>P1</td><td><code>agents/.../browser-agent/src/server.mjs</code></td><td>CC≈64</td></tr>
+<tr><td>P2</td><td><code>contractor-portal/.../index.php</code></td><td>~1124 L</td></tr>
+<tr><td>P2</td><td><code>project-importer</code> blueprint / scenario-editor</td><td>CC 27–38</td></tr>
+</tbody></table>
+<h2>Cele ewolucji (code2llm)</h2>
+<ul>
+<li>CC̄: 3.9 → ≤2.8  </li>
+<li>max-CC: 280 → ≤20  </li>
+<li>god-modules: 27 → 0  </li>
+<li>high-CC (≥15): 226 → ≤113  </li>
+</ul>
+<h2>Faza w toku (2026-07-17)</h2>
+<table>
+<thead><tr><th>Krok</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Dokumentacja health + plan</td><td><strong>done</strong></td></tr>
+<tr><td>Split <code>delegation-manager</code> → config / coverage / decision</td><td><strong>done</strong></td></tr>
+<tr><td>Extract <code>access-registry</code>, <code>integration-records</code>, <code>delegation-summary</code> z control server</td><td><strong>done</strong> (<code>server.mjs</code> ~1038 → ~954 L)</td></tr>
+<tr><td>Routing HTTP control server (handlery per domena)</td><td><strong>next</strong></td></tr>
+<tr><td>Split bridge <code>execute</code></td><td>planned</td></tr>
+<tr><td>Modularizacja <code>app.js</code></td><td>planned</td></tr>
+</tbody></table>
+<p>Testy: <code>delegation-manager</code>, <code>scenario-editor</code>, <code>panel-contract</code>, <code>panel-router</code> — zielone (platform).</p>
+<h2>Jak odświeżyć indeks</h2>
+<pre><code class="language-bash"># z roota workspace; wyklucz node_modules i venv
+code2llm ./ -f all --toon-yaml -o project --no-png \
+  --exclude node_modules .venv platform/node_modules</code></pre>
+<p>Ticket’y z code2llm: <code>project/planfile-tickets.yaml</code> (495 sygnałów; ~połowa to mirror). Aktywna kolejka Koru/planfile w workspace może być pusta — backlog refaktoru trzymamy w docs + PR.</p>
+<h2>Powiązane</h2>
+<ul>
+<li><a href="./ORGANIZATION_OS_ARCHITECTURE.html">ORGANIZATION_OS_ARCHITECTURE.md</a>  </li>
+<li><a href="../../platform/docs/refactoring-summary-and-next-steps-2026-07-16.html">platform/docs/refactoring-summary-and-next-steps-2026-07-16.md</a>  </li>
+<li><a href="../../platform/docs/DELEGATION_MANAGER.html">platform/docs/DELEGATION_MANAGER.md</a>  </li>
+<li>Indeksy: <code>project/analysis.toon.yaml</code>, <code>project/map.toon.yaml</code></li>
+</ul>
+</main>
+</body>
+</html>

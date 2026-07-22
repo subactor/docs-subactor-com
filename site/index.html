@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subactor Docs</title>
+  <meta name="description" content="Publiczna dokumentacja Subactor — Organization OS, autonomy CLI, platforma." />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --fg: #e7ecf1;
+      --muted: #9aa7b5;
+      --accent: #3d9cf0;
+      --line: #243041;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg);
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 4rem 1.5rem 5rem;
+    }
+    .brand {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      letter-spacing: 0.04em;
+      font-size: 0.85rem;
+      color: var(--accent);
+      margin: 0 0 1rem;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.4rem);
+      font-weight: 600;
+      margin: 0 0 0.75rem;
+      letter-spacing: -0.02em;
+    }
+    p.lead { color: var(--muted); margin: 0 0 2rem; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li {
+      border-top: 1px solid var(--line);
+      padding: 0.9rem 0;
+    }
+    li:last-child { border-bottom: 1px solid var(--line); }
+    a { color: var(--fg); text-decoration: none; }
+    a:hover { color: var(--accent); }
+    .meta { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="brand">docs.subactor.com</p>
+    <h1>Dokumentacja Subactor</h1>
+    <p class="lead">Organization OS — od NL w CLI do URI Process i publikacji na Plesk.</p>
+    <ul>
+      <li>
+        <a href="operations/index.html">Operations log</a>
+        <span class="meta">każdy subactor ask — zapytanie, plan, docroot, wynik</span>
+      </li>
+      <li>
+        <a href="autonomy-cli-runbook.html">Autonomy CLI runbook</a>
+        <span class="meta">NL → AQL/OQL/URI → sync httpdocs</span>
+      </li>
+      <li>
+        <a href="plans/docs-subactor-com-publish.html">Plan publikacji docs</a>
+        <span class="meta">docs/ → docs.subactor.com</span>
+      </li>
+      <li>
+        <a href="platform/ORGANIZATION_OS_ARCHITECTURE.html">Organization OS architecture</a>
+        <span class="meta">Warstwy AQL / OQL / Bridge / Control</span>
+      </li>
+      <li>
+        <a href="platform/BUSINESS_OPERATING_SYSTEM.html">Business operating system</a>
+        <span class="meta">Model operacyjny</span>
+      </li>
+      <li>
+        <a href="platform/TASK_PROCESS_RUNTIME.html">Task / URI Process runtime</a>
+        <span class="meta">Runtime zadań</span>
+      </li>
+      <li>
+        <a href="README.html">README</a>
+        <span class="meta">Indeks repozytorium docs</span>
+      </li>
+    </ul>
+  </main>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canonical component paths vs `platform/components/` — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Canonical component paths vs <code>platform/components/</code></h1>
+<p><strong>Status:</strong> decided (Workstream 1 / roadmap unit 1) <strong>Date:</strong> 2026-07-18 <strong>Related:</strong> <a href="./adr/007-canonical-component-paths.html"><code>adr/007-canonical-component-paths.md</code></a>, <a href="../plans/autonomy-implementation-roadmap.html"><code>../plans/autonomy-implementation-roadmap.md</code></a>, <a href="../../platform/docs/SUBACTOR_MULTI_REPO_MIGRATION.html"><code>../../platform/docs/SUBACTOR_MULTI_REPO_MIGRATION.md</code></a></p>
+<h2>Decision</h2>
+<table>
+<thead><tr><th>Role</th><th>Path</th><th>Nature</th></tr></thead>
+<tbody>
+<tr><td><strong>Canonical source</strong></td><td>Sibling repos: <code>core/</code>, <code>connectors/</code>, <code>agents/</code>, … (remotes <code>github.com/subactor/&lt;name&gt;</code>)</td><td>Edit and commit here (or in an equivalent clone of the same remote)</td></tr>
+<tr><td><strong>Deploy pin</strong></td><td><code>platform/components/&lt;name&gt;/</code></td><td><strong>Git submodules</strong> of those remotes — not vendors, not generated mirrors, not independent copies</td></tr>
+<tr><td><strong>Runtime build context</strong></td><td><code>platform/docker-compose.yml</code> → <code>dockerfile: components/...</code></td><td>Images are built from the <strong>submodule pin</strong>, not from umbrella sibling checkouts</td></tr>
+</tbody></table>
+<p><code>platform/components/*</code> are recorded in <code>platform/.gitmodules</code>. Docker Compose and Dockerfiles under <code>platform/</code> always reference <code>components/…</code>.</p>
+<h2>Edit rule</h2>
+<ol>
+<li>Change code in the <strong>component repository</strong> (umbrella <code>core/</code> / <code>connectors/</code> / … <strong>or</strong> the submodule working tree — same remote).</li>
+<li>Push the component commit to <code>origin</code>.</li>
+<li>Update the <strong>platform</strong> submodule pointer (<code>git -C platform add components/&lt;name&gt;</code> + commit) so deploy matches.</li>
+<li>Do <strong>not</strong> maintain long-lived divergent patches only in one checkout.</li>
+</ol>
+<p>Umbrella siblings (<code>/home/tom/github/subactor/core</code>) and submodule checkouts (<code>platform/components/core</code>) may both exist for convenience. Content for service trees should match; tooling-only files (<code>.koru</code>, <code>.planfile</code>, local <code>koru.yaml</code>) may differ and are ignored by drift checks.</p>
+<h2>What runs in production / local compose</h2>
+<table>
+<thead><tr><th>Concern</th><th>Canonical edit location</th><th>What compose runs</th></tr></thead>
+<tbody>
+<tr><td>Control / LLM routes (<code>llm.mjs</code>, <code>*-sync-intent.mjs</code>)</td><td><code>core</code></td><td><code>platform/components/core</code> (pinned)</td></tr>
+<tr><td>Connectors / Plesk bridge</td><td><code>connectors</code></td><td><code>platform/components/connectors</code> (pinned)</td></tr>
+<tr><td>Intent pack <strong>data</strong></td><td><code>platform/config/intent-packs/</code></td><td>Mounted as <code>/app/config</code> (platform-owned)</td></tr>
+</tbody></table>
+<p>Intent pack JSON lives only under <code>platform/config/</code> (assembly SSOT). Resolvers that consume packs live in component code (<code>core</code>, optionally <code>agents</code> adapters).</p>
+<h2>Drift detection</h2>
+<pre><code class="language-bash"># from platform/
+node scripts/check-component-drift.mjs          # core + connectors (default gate)
+node scripts/check-component-drift.mjs --all    # every submodule
+make check-component-drift</code></pre>
+<p>The script:</p>
+<ul>
+<li>confirms listed <code>platform/components/*</code> are gitlinks / submodules;</li>
+<li>when an umbrella sibling checkout exists, compares <strong>service source trees</strong> (excludes <code>.git</code>, <code>node_modules</code>, <code>.koru</code>, <code>.planfile</code>, …);</li>
+<li>exits non-zero on content drift so CI / local gates catch “fixed in sibling, forgot submodule”.</li>
+</ul>
+<p>SHA inequality alone is a <strong>warning</strong> (parallel commits with identical trees are possible); <strong>file content</strong> drift is the hard failure.</p>
+<p>Default scope is <code>core</code> + <code>connectors</code> (LLM routes + bridge). <code>--all</code> also reports known historical drift in other components (e.g. agents phrase files present only in the umbrella sibling) without blocking the default gate until those are reconciled.</p>
+<h2>Out of scope</h2>
+<ul>
+<li>Mass deletion of umbrella siblings or forced single-checkout layout.</li>
+<li>Rewriting Docker contexts to point at <code>../core</code> (keeps platform self-contained with recursive clone).</li>
+</ul>
+</main>
+</body>
+</html>

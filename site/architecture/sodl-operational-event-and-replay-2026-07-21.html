@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SODL/1 — wspólny dziennik decyzji, zadań i replay — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>SODL/1 — wspólny dziennik decyzji, zadań i replay</h1>
+<p>Status: wdrożona podstawa w ramach <code>PLF-819</code> Data: 2026-07-21</p>
+<h2>Decyzja</h2>
+<p>Subactor nie wprowadza nowego języka opisującego logikę biznesową. Zachowuje istniejący podział:</p>
+<ul>
+<li>AQL określa, kto i w jakim zakresie ma authority;</li>
+<li>OQL określa operację;</li>
+<li>URI Process wskazuje wykonawcę i adres procesu;</li>
+<li>EQL określa oczekiwany, niezależnie sprawdzany skutek;</li>
+<li>Planfile przechowuje zamiar, stan pracy i completion receipt.</li>
+</ul>
+<p><code>SODL/1</code> (Subactor Operational DSL) jest odwracalną, jednoliniową kopertą zdarzenia nad tymi językami. Ta sama linia służy do obserwacji, parsowania, korelacji i przygotowania kontrolowanego replay.</p>
+<h2>Dlaczego ten format</h2>
+<p>Przed implementacją porównano istniejące rozwiązania w <code>~/github/*/*</code>:</p>
+<table>
+<thead><tr><th>Projekt</th><th>Element wykorzystany w SODL</th><th>Dlaczego nie został użyty samodzielnie</th></tr></thead>
+<tbody>
+<tr><td><code>semcod/koru</code></td><td>czytelna linia zdarzenia, correlation, command/replay i kilka widoków jednego źródła</td><td>Koru opisuje głównie sterowanie IDE/shell/GUI; historyczny shell nie może być domyślnym replay produkcji</td></tr>
+<tr><td><code>if-uri/urirun-flow</code></td><td>URI jako kanoniczna jednostka wykonania oraz zależności kroków</td><td>YAML flow jest dobry dla całego procesu, ale nie jest jedną linią zdarzenia</td></tr>
+<tr><td><code>if-uri/urirun-declarative</code></td><td>typed URI bindings i connector ownership</td><td>opisuje connector, nie historię decyzji</td></tr>
+<tr><td><code>semcod/deta</code> ChangeDSL</td><td>prosty, grep-friendly zapis jednej zmiany</td><td>nie ma parsera, autoryzacji ani ochrony replay</td></tr>
+<tr><td><code>semcod/redsl</code></td><td>append-only JSONL, event envelope, projekcje i replay agregatu</td><td>wprowadzałby drugi model semantyczny obok AQL/OQL/EQL/URI</td></tr>
+<tr><td><code>founder-pl/DSL</code></td><td>CQRS/event sourcing, read models, undo/redo</td><td>jest szerszym systemem, a Subactor ma już Planfile i URI runtime</td></tr>
+<tr><td><code>semcod/iterun</code></td><td>rozdzielenie intentu od wykonania</td><td>DSL jest receptą, a nie audytowalnym zdarzeniem wykonania</td></tr>
+</tbody></table>
+<h2>Format linii</h2>
+<p>Przykład skrócony:</p>
+<pre><code class="language-text">SODL/1 id=evt_... event_hash=... timestamp=... kind=decision source=control.audit ticket_id=PLF-819 actor=authority%3Afounder oql=ticket.delegate uri=planfile%3A%2F%2Ftickets%2FPLF-819%2Fcommand%2Frespond mode=apply status=succeeded ... data=&lt;base64url-canonical-json&gt;</code></pre>
+<p>Widoczne pola pozwalają filtrować linię bez dekodowania. <code>data</code> zawiera kanoniczny JSON umożliwiający round-trip bez utraty struktury. <code>event_hash</code> wykrywa zmianę któregokolwiek pola lub payloadu.</p>
+<p>Wymagane pola semantyczne:</p>
+<ul>
+<li><code>id</code>, <code>event_hash</code>, <code>timestamp</code>, <code>kind</code>, <code>source</code>;</li>
+<li><code>ticket_id</code>, <code>actor</code>, <code>oql</code>, <code>uri</code>;</li>
+<li><code>mode</code>: <code>observe</code>, <code>dry-run</code> albo <code>apply</code>;</li>
+<li><code>status</code>, <code>correlation_id</code>, <code>causation_id</code>;</li>
+<li><code>input_hash</code>, <code>receipt_ref</code>, <code>replayable</code>;</li>
+<li><code>data</code>: zredagowany, kanoniczny JSON.</li>
+</ul>
+<p>Sekrety nie są częścią DSL. Pola o nazwach takich jak <code>password</code>, <code>credential</code>, <code>token</code>, <code>authorization</code>, <code>api_key</code> są redagowane. Tokeny w URL i fragmentach również są zastępowane. Linia może przechować wyłącznie referencję do credentiala w vault.</p>
+<h2>Gdzie zdarzenia są zapisywane</h2>
+<h3>Zadania</h3>
+<p>Planfile zapisuje:</p>
+<ul>
+<li>linię <code>ticket.create</code> w polu <code>ticket.dsl</code>;</li>
+<li>linię każdej zmiany w <code>ticket.history[*].dsl</code>;</li>
+<li>te same zdarzenia do append-only <code>.planfile/events/operations.jsonl</code>.</li>
+</ul>
+<p>API Planfile:</p>
+<pre><code class="language-text">GET http://127.0.0.1:8765/operations?ticket_id=PLF-819&amp;limit=200</code></pre>
+<h3>Decyzje i operacje Control</h3>
+<p>Każdy nowy wpis <code>audit.jsonl</code> otrzymuje <code>sodl_event</code> oraz <code>dsl</code>. Dotyczy to m.in. decyzji authority, delegowania, grantów, planów i dispatchu URI Process.</p>
+<p>Zunifikowany widok Control:</p>
+<pre><code class="language-text">GET http://127.0.0.1:8091/api/operations?ticket_id=PLF-819&amp;limit=200</code></pre>
+<p>Endpoint wymaga zakresu <code>audit:read</code>. Bez <code>ticket_id</code> zwraca ostatnie decyzje Control i zdarzenia task journal Planfile.</p>
+<h2>Protokół replay</h2>
+<p>Replay nigdy nie wykonuje tekstu linii jako shell ani nie ufa historycznej authority.</p>
+<ol>
+<li>Parser sprawdza wersję, wymagane pola, kanoniczną serializację i <code>event_hash</code>.</li>
+<li>Powstaje nowe zdarzenie <code>kind=replay</code> z <code>causation_id</code> wskazującym źródło.</li>
+<li>Powstaje nowy idempotency key <code>sodl-replay:&lt;event-id&gt;:&lt;mode&gt;</code>.</li>
+<li><code>observe</code> jest trybem domyślnym.</li>
+<li>Dispatch <code>observe</code> jest możliwy wyłącznie dla jawnie odczytowego URI; <code>dry-run</code> wymusza <code>apply=false</code>.</li>
+<li><code>apply</code> nie jest wykonywany bezpośrednio przez endpoint SODL. Musi przejść zatwierdzony plan, nowy process ticket, aktualne AQL/EQL oraz jednorazowy apply grant.</li>
+<li>Wynik tworzy nowe zdarzenie i receipt; historia nie jest nadpisywana.</li>
+</ol>
+<p>API Control:</p>
+<pre><code class="language-text">POST /api/operations/parse
+{&quot;line&quot;:&quot;SODL/1 ...&quot;}
+
+POST /api/operations/replay
+{&quot;line&quot;:&quot;SODL/1 ...&quot;,&quot;mode&quot;:&quot;observe&quot;,&quot;dispatch&quot;:false}</code></pre>
+<p><code>dispatch:false</code> tylko pokazuje dokładny plan replay. <code>dispatch:true</code> tworzy śledzony URI Process wyłącznie wtedy, gdy polityka read-only/dry-run na to pozwala. Próba bezpośredniego <code>apply</code> zwraca <code>sodl_apply_replay_requires_approved_plan</code>.</p>
+<h2>Relacja do flow</h2>
+<p><code>urirun-flow</code> pozostaje formatem wielokrokowej recepty. Każdy krok flow powinien emitować własną linię SODL z tym samym <code>correlation_id</code>; <code>causation_id</code> tworzy łańcuch przyczynowy. Dzięki temu można odtworzyć pojedynczy krok bez udawania, że ponowne wykonanie całego historycznego flow jest zawsze bezpieczne.</p>
+<h2>Weryfikacja</h2>
+<p>Testy obejmują:</p>
+<ul>
+<li>identyczną serializację Node i Python;</li>
+<li>unicode i round-trip <code>parse → serialize</code>;</li>
+<li>wykrywanie manipulacji;</li>
+<li>redakcję sekretów oraz tokenów URL;</li>
+<li>domyślne <code>observe</code> i blokadę <code>apply</code> bez nowego ticketu;</li>
+<li>zapis DSL przy utworzeniu i zmianie ticketu;</li>
+<li>append-only task journal;</li>
+<li>wspólny widok decyzji Control i historii Planfile.</li>
+</ul>
+<p>Postflight produkcyjny <code>PLF-825</code> potwierdził ścieżkę Planfile/Python → Control/Node → plan replay → audit Control. W trakcie postflightu wykryto i poprawiono różnicę <code>30.0</code> (Python) kontra <code>30</code> (Node): całkowite wartości float są normalizowane przed hashowaniem, dzięki czemu oba runtime'y emitują identyczne bajty.</p>
+<p>Znane ograniczenie: istniejące zdarzenia sprzed wdrożenia nie są przepisywane. Są nadal widoczne w dotychczasowej historii, ale SODL powstaje dla nowych ticketów i nowych zmian. Backfill powinien być osobnym, niemutującym procesem projekcji oznaczającym zdarzenia jako <code>source=legacy-projection</code>.</p>
+</main>
+</body>
+</html>

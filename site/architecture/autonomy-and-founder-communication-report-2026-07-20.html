@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raport autonomii i kanałów komunikacji z Founderem — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Raport autonomii i kanałów komunikacji z Founderem</h1>
+<p><strong>Stan na:</strong> 2026-07-20, Europe/Warsaw <strong>Zakres:</strong> lokalny stos Subactor, autonomia bez self-evolution, komunikacja Founder ↔ system, delegowanie pracy <strong>Charakter raportu:</strong> wyniki testów kodu i działającego środowiska; test mock/lokalny nie jest dowodem gotowości produkcyjnej</p>
+<blockquote><strong>Aktualizacja naprawcza 2026-07-20 18:45 CEST:</strong> sekcje poniżej zachowują<br />wcześniejszy stan diagnostyczny. Poniższy blok jest aktualnym, nadrzędnym<br />wynikiem po realizacji ticketu <code>PLF-597</code>.</blockquote>
+<h2>0. Stan po naprawie PLF-597</h2>
+<h3>Werdykt bieżący</h3>
+<ul>
+<li>lokalny stack: <strong>19/19 kontenerów uruchomionych, brak unhealthy</strong>;</li>
+<li>dashboard: <strong>16/16 usług zdrowych</strong>, zero failed/degraded;</li>
+<li>inbound e-mail: <strong>ready</strong>, prawidłowy poll IMAP, brak ostatniego błędu;</li>
+<li>outbound e-mail: <strong>działa przez realny SMTP</strong>; świeży link Plesk wysłano do</li>
+</ul>
+<p>Foundera z <code>transport=external</code>;</p>
+<ul>
+<li>jawność URI Process: generatory intake Plesk/IMAP/SMTP wymagają istniejącego</li>
+</ul>
+<p>ticketa z co najmniej jedną definicją AQL/EQL/OQL/URI i zachowują manifest;</p>
+<ul>
+<li>autonomia pozostaje <code>false</code>, ponieważ **44 aktywne tickety oczekują na</li>
+</ul>
+<p>człowieka**. To rzeczywisty backlog, nie wcześniejsze zawyżone 146;</p>
+<ul>
+<li>mutacje produkcyjne są ponownie <strong>fail-closed</strong>:</li>
+</ul>
+<p><code>AUTONOMY_MUTATIONS_ENABLED=0</code>.</p>
+<h3>Naprawione usterki</h3>
+<ol>
+<li>Dashboard nie zalicza już terminalnych ticketów <code>done</code>, <code>canceled</code> i</li>
+</ol>
+<p><code>blocked</code> do <code>human_attention</code>, nawet jeżeli stary rekord ma historyczne <code>execution.state=waiting_input</code>.</p>
+<ol>
+<li>Planfile atomowo synchronizuje terminalny status z <code>execution.state</code>, czyści</li>
+</ol>
+<p><code>assigned_to</code> i lease oraz zapisuje <code>finished_at</code>. Live regresja <code>PLF-598</code> potwierdziła przejście <code>open/waiting_input → canceled/canceled</code>.</p>
+<ol>
+<li>Connector LAN odzyskał sieć <code>connector-execution</code>; mTLS health jest zielony,</li>
+</ol>
+<p>a gateway widzi 541 tras. Nie poszerzono dostępu do prywatnego executora.</p>
+<ol>
+<li>IMAP nie omija już walidacji TLS. Dodano osobny SNI</li>
+</ol>
+<p><code>INBOUND_EMAIL_IMAP_SERVERNAME=webmail.prototypowanie.pl</code>, zgodny z SAN certyfikatu, przy zachowaniu hosta i origin binding istniejącego sekretu.</p>
+<ol>
+<li>Błąd IMAP nie jest już redukowany do ogólnego <code>imap_poll_failed</code>; bezpieczna</li>
+</ol>
+<p>przyczyna trafia do audytu i health.</p>
+<ol>
+<li>Skrypty secret intake nie mogą utworzyć realnej operacji bez wcześniejszego</li>
+</ol>
+<p>ticketa i definicji procesu. Dowód jest dopisywany między markerami, więc ponowienie nie niszczy manifestu ani uzasadnienia.</p>
+<ol>
+<li><code>.env</code> Platformy i <code>.env.example</code> mają ten sam komplet <strong>502 nazw</strong>;</li>
+</ol>
+<p><code>env-contract.json</code> jest zsynchronizowany. Portal kontraktora ma <strong>30/30</strong>, a <code>init-env.mjs</code> uzupełnia brakujące bezpieczne wartości domyślne bez nadpisywania istniejących sekretów.</p>
+<ol>
+<li>Gate wdrożenia uznaje dynamiczny, wybrany profil Plesk za nadrzędny wobec</li>
+</ol>
+<p>bootstrapowego <code>PLESK_BASE_URL</code>; po zapisaniu profilu live nie zablokuje go już pozostawiony lokalny URL mocka.</p>
+<h3>Komunikacja z Founderem teraz</h3>
+<table>
+<thead><tr><th>Kierunek</th><th>Stan</th></tr></thead>
+<tbody>
+<tr><td>Founder → system przez IMAP</td><td><strong>Gotowe technicznie i zdrowe.</strong> Ścisła autoryzacja nadawcy nadal obowiązuje.</td></tr>
+<tr><td>System → Founder przez SMTP</td><td><strong>Gotowe i potwierdzone live.</strong> <code>PLF-599</code> dostarczono transportem zewnętrznym.</td></tr>
+<tr><td>Founder → system przez WWW lokalnie</td><td><strong>Działa.</strong> Magic link i sesja HttpOnly były wcześniej przetestowane.</td></tr>
+<tr><td>Publiczny <code>founder.subactor.com</code></td><td><strong>Jeszcze nie.</strong> DNS wskazuje GitHub Pages z niepasującym TLS; wymagany Plesk/ingress preflight.</td></tr>
+<tr><td>Delegowanie przez sam adres e-mail</td><td><strong>Działa tylko dla jednoznacznie zarejestrowanego aktora</strong> (np. <code>tom@prototypowanie.pl → founder</code>); nieznana lub niejednoznaczna osoba nadal fail-closed.</td></tr>
+</tbody></table>
+<h3>Co nadal wymaga działania</h3>
+<ol>
+<li>**Founder musi otworzyć link z e-maila dla <code>PLF-599</code> i podać dane</li>
+</ol>
+<p>administratora Plesk.** Dopiero potem system może utworzyć i sprawdzić dynamiczny profil live. Hasła nie należy wklejać do ticketu ani odpowiedzi.</p>
+<ol>
+<li>Po zielonym Plesk preflight pozostają realne zmiany DNS/TLS:</li>
+</ol>
+<p><code>www.subactor.com</code>, <code>contracts.subactor.com</code> i <code>founder.subactor.com</code> mają CNAME do GitHub Pages oraz błędny certyfikat; <code>status.subactor.com</code> narusza deklarację prywatnej ekspozycji.</p>
+<ol>
+<li>Nie istnieje jeszcze bezpieczny panel zapisujący <strong>każdą</strong> zmienną runtime i</li>
+</ol>
+<p>restartujący wszystkie usługi. Integracje i secret intake są konfigurowalne przez WWW, ale pełne nadpisania instalacyjne nadal przechodzą przez <code>.env</code>/<code>.env.example</code>, walidator, ticket i kontrolowany deploy. Dodanie jednego zapisu z kontenera bez mechanizmu restartu dawałoby fałszywe poczucie zastosowania konfiguracji.</p>
+<ol>
+<li><code>44</code> aktywne eskalacje wymagają przeglądu/deduplikacji według intencji;</li>
+</ol>
+<p>system nie może bezpiecznie masowo zamknąć realnych poleceń Foundera.</p>
+<ol>
+<li>Zmiany w wielu repozytoriach pozostają lokalnie niezatwierdzone i są</li>
+</ol>
+<p>wymieszane z równoległą pracą. Nie wykonano zbiorczego commita ani push, aby nie przejąć cudzych zmian.</p>
+<h3>Dowody testowe po naprawie</h3>
+<table>
+<thead><tr><th>Zakres</th><th>Wynik</th></tr></thead>
+<tbody>
+<tr><td>Core control</td><td><strong>167/167 PASS</strong></td></tr>
+<tr><td>Agenci, vault, IMAP i chat</td><td><strong>28/28 PASS</strong></td></tr>
+<tr><td>Integracje</td><td><strong>1/1 PASS</strong></td></tr>
+<tr><td>Portal kontraktora</td><td><strong>10/10 PASS</strong></td></tr>
+<tr><td>Planfile lifecycle</td><td><strong>20/20 PASS</strong>, 1 test API pominięty przez warunek środowiska</td></tr>
+<tr><td>Secret-intake process gate</td><td><strong>2/2 PASS</strong></td></tr>
+<tr><td>Connector LAN</td><td><strong>3/3 PASS</strong> i live mTLS health PASS</td></tr>
+<tr><td>Public deploy gate</td><td><strong>8/8 PASS</strong></td></tr>
+<tr><td>Planfile <code>127.0.0.1:8765</code></td><td>Wszystkie bezpieczne GET-y sprawdzone; <code>/yaml</code> zwraca oczekiwane 404, bo bieżąca instancja używa <code>.planfile/sprints/*</code> i nie ma opcjonalnego strategicznego <code>planfile.yaml</code>.</td></tr>
+</tbody></table>
+<p>Tickety dowodowe: nadrzędny <code>PLF-597</code>, regresja terminalnego stanu <code>PLF-598</code> (canceled po poprawnym teście) oraz aktywny intake Plesk <code>PLF-599</code>.</p>
+<h3>Dzienny raport Foundera — PLF-600</h3>
+<p>Dodano deterministyczny scheduler raportu firmy. O 08:00 Europe/Warsaw zbiera stan usług, dane Organization Core, zakończone prace oraz kolejkę decyzji Foundera i wysyła jedną wiadomość przez wymagany zewnętrzny SMTP. Każdy raport ma własny ticket utworzony przed odczytami i wysyłką, manifest AQL/EQL/OQL/URI, klucz idempotencji oparty o dzień oraz wynik bridge. Dokumentacja operacyjna: <a href="../../platform/docs/FOUNDER_DAILY_DIGEST.html">FOUNDER_DAILY_DIGEST.md</a>.</p>
+<p>Walidacja live zakończona powodzeniem: scheduler utworzył <code>PLF-601</code> przed pierwszym odczytem i wysyłką, bridge wykonał <code>email.send</code> przez transport <code>external</code>, a ticket zakończył się jako <code>done</code> z odwołaniem do <code>bridge-audit.jsonl</code>. Audyt control zawiera <code>founder_daily_digest.delivered</code>. Ponowne wymuszenie raportu tego samego dnia zwróciło <code>already_sent_today</code>; nie powstał drugi ticket ani druga wiadomość.</p>
+<h3>Process Pack v1 — PLF-602</h3>
+<p>Rozpoczęto wyodrębnianie procesów z kodu serwera. Dzienny raport jest pierwszym aktywnym <code>Process Pack v1</code>: osobno przechowuje NL, model AQL, oczekiwania EQL, operacje OQL i graf URI. Loader odrzuca dynamiczne URI, traversal referencji, sekretne lub nieznane pola, nieznane bindingi, brak modelu oraz niespójny graf. Control udostępnia autoryzowane API listy, szczegółów, rozpoznania NL i preview manifestu; żaden z tych endpointów nie wykonuje procesu. Dokumentacja: <a href="../../platform/docs/PROCESS_PACKS.html">PROCESS_PACKS.md</a>.</p>
+<p>Walidacja live: aktywny pack zwraca wszystkie cztery definicje, polskie NL jest rozpoznawane deterministycznie, preview kompiluje manifest na kolejny dzień, błędny binding kończy się <code>422</code>, nieznany pack <code>404</code>, a ponowne uruchomienie raportu zachowuje <code>already_sent_today</code>. Po wdrożeniu system ma <code>16/16</code> zdrowych usług i nadal dokładnie jeden ticket raportu za 2026-07-20.</p>
+<h3>Process Packi Founder notify/reply — PLF-603</h3>
+<p>Powiadomienia o wymaganej decyzji i odpowiedzi w wątku Foundera zostały przeniesione z manifestów zapisanych w <code>server.mjs</code> do dwóch aktywnych packów. Obie ścieżki wymagają zewnętrznego SMTP, stałego <code>FOUNDER_EMAIL</code>, wcześniejszego ticketu oraz pełnego AQL/EQL/OQL/URI. Reply zachowuje threading, odrzuca próbę podmiany odbiorcy i czyści nagłówki z CR/LF. Szczegóły: <a href="../../platform/docs/FOUNDER_COMMUNICATION_PROCESS_PACKS.html">FOUNDER_COMMUNICATION_PROCESS_PACKS.md</a>.</p>
+<p>Walidacja live nie wykonywała testowej dostawy: licznik <code>email.send</code> w audycie bridge pozostał <code>719 → 719</code>. Oba preview zwróciły pełne AQL/EQL/OQL/URI i <code>require_external=true</code>, NL wybrało pack reply, a dashboard po stabilizacji raportuje <code>16/16 healthy</code>.</p>
+<h2>1. Werdykt</h2>
+<p>System ma działający lokalny pion autonomii dla jawnie wspieranych procesów, ale nie jest jeszcze w pełni autonomiczny produkcyjnie.</p>
+<table>
+<thead><tr><th>Pytanie</th><th>Odpowiedź na dziś</th></tr></thead>
+<tbody>
+<tr><td>Czy lokalny proces AQL → OQL → wykonanie → Planfile działa?</td><td><strong>Tak.</strong> Live E2E przeszedł po synchronizacji konfiguracji i odtworzeniu bridge.</td></tr>
+<tr><td>Czy Founder może zarządzać i delegować przez WWW?</td><td><strong>Tak, lokalnie.</strong> Zweryfikowano logowanie, manager delegowania i przekazanie ticketu do <code>operations-lead</code>. Panel jest związany z <code>127.0.0.1</code>, więc nie jest publicznym portalem internetowym.</td></tr>
+<tr><td>Czy Founder może dziś wysłać prawdziwy e-mail i wydać nim zadanie?</td><td><strong>Nie w środowisku produkcyjnym.</strong> Kod i kontrolowany webhook działają, ale agent IMAP ma stan <code>waiting_credentials</code>.</td></tr>
+<tr><td>Czy system może dziś wysłać prawdziwy e-mail do Foundera?</td><td><strong>Tak.</strong> <code>PLF-569</code> zakończył <code>email.send</code> przez <code>transport=external</code>; serwer SMTP zaakceptował wiadomość z jednorazowym hasłem dla <code>tom@prototypowanie.pl</code>. Odbiór w skrzynce i pierwsze logowanie wymagają potwierdzenia Foundera.</td></tr>
+<tr><td>Czy samo wskazanie adresu e-mail osoby wystarcza do delegowania?</td><td><strong>Nie.</strong> Delegowanie działa po <code>actor_id</code>/roli i kontrakcie AQL. Brak resolvera <code>email → aktywny aktor → kontrakt → kolejka</code>.</td></tr>
+<tr><td>Czy dowolne polecenie e-mail zostanie autonomicznie wykonane?</td><td><strong>Nie.</strong> E-mail tworzy ticket <code>ready</code> w kolejce <code>project-operator-bot</code>, ale nie kompiluje jeszcze ogólnego polecenia do planu URI Process ani nie dowodzi wykonania przez osobnego consumera tej kolejki.</td></tr>
+</tbody></table>
+<p>Najkrócej: <strong>WWW jest obecnie najlepszym działającym kanałem operacyjnym</strong>, a e-mail jest zaimplementowany i bezpiecznie bramkowany, lecz nadal wymaga credentiali oraz domknięcia pętli <code>mail → intent → plan → execute → reply</code>.</p>
+<h2>2. Co zostało zaimplementowane</h2>
+<h3>Rdzeń autonomii</h3>
+<ul>
+<li>kontrakty AQL dla ludzi i botów, ograniczenia modeli, operacji, URI Process,</li>
+</ul>
+<p>domen e-mail, liczby kroków i czasu ważności;</p>
+<ul>
+<li>podpisane apply granty związane z <code>plan_hash</code>, czasem i celem, wraz z ochroną</li>
+</ul>
+<p>przed replay (<code>jti</code>);</p>
+<ul>
+<li>rozdzielenie dry-run, odmowy authority, wykonania, weryfikacji i rollbacku;</li>
+<li>capability preflight przed obietnicą wykonania;</li>
+<li>intent packs i deterministyczne rozpoznawanie wspieranych poleceń;</li>
+<li>Planfile jako rejestr pracy, eskalacji i decyzji człowieka;</li>
+<li>Digital Twin z izolacją principal/kontrakt dla 8 aktorów;</li>
+<li>fail-closed: brak kontraktu, scope, capability, grantu lub sekretu nie jest</li>
+</ul>
+<p>raportowany jako sukces.</p>
+<p>Szczegółowy stan wcześniejszych faz znajduje się w <a href="autonomy-implementation-status.html">autonomy-implementation-status.md</a> oraz <a href="unresolved-live-autonomy-blockers-2026-07-19.html">unresolved-live-autonomy-blockers-2026-07-19.md</a>.</p>
+<h3>Kanał e-mail przychodzący</h3>
+<p>Zaimplementowano:</p>
+<ul>
+<li>skrzynkę poleceń <code>agent@prototypowanie.pl</code>;</li>
+<li>allowlistę nadawców i odbiorców;</li>
+<li>zgodność nadawcy z aktywnym kontaktem Org Core;</li>
+<li>zgodność z kontraktem AQL i <code>ALLOW EMAIL_SENDER</code>;</li>
+<li>weryfikację SPF/DKIM/DMARC w trybie <code>strict</code>;</li>
+<li>deduplikację po <code>Message-ID</code>/fingerprincie;</li>
+<li>kwarantannę nieautoryzowanych wiadomości bez przechowywania ich treści;</li>
+<li>zapis zaakceptowanego polecenia jako ticketu Planfile;</li>
+<li>routing zaakceptowanego polecenia do <code>project-operator-bot</code>.</li>
+</ul>
+<p>Dowody implementacji:</p>
+<ul>
+<li><a href="../../platform/docs/INBOUND_EMAIL_AUTHORIZATION.html">INBOUND_EMAIL_AUTHORIZATION.md</a>,</li>
+<li><a href="../../agents/services/inbound-email-agent/src/processor.mjs">processor.mjs</a>,</li>
+<li><a href="../../agents/services/inbound-email-agent/src/authorization.mjs">authorization.mjs</a>,</li>
+<li><a href="../../platform/config/inbound-email-policy.json">inbound-email-policy.json</a>.</li>
+</ul>
+<h3>WWW i delegowanie</h3>
+<p>Zaimplementowano:</p>
+<ul>
+<li>panel Foundera z logowaniem administracyjnym;</li>
+<li>widok stanu systemu, modeli, planów, integracji i dostępów;</li>
+<li>manager delegowania <code>ticket → reguła → rola → kandydat → pokrycie AQL</code>;</li>
+<li>ręczne delegowanie ticketu do aktora/kolejki;</li>
+<li>ograniczony scheduler automatycznej delegacji;</li>
+<li>audyt zdarzeń <code>delegation.ticket.assigned</code>;</li>
+<li>osobne zarządzanie uprawnieniami aktora i delegowaniem ticketu.</li>
+</ul>
+<p>Automatyczna delegacja jest obecnie skonfigurowana, lecz w żywym store ma <code>automation_enabled=false</code>. Ręczne delegowanie działa.</p>
+<p>Dowody implementacji:</p>
+<ul>
+<li><a href="../../platform/docs/DELEGATION_MANAGER.html">DELEGATION_MANAGER.md</a>,</li>
+<li><a href="../../core/services/control/src/delegation-manager.mjs">delegation-manager.mjs</a>,</li>
+<li><a href="../../core/services/control/src/delegation-config.mjs">delegation-config.mjs</a>,</li>
+<li><a href="../../platform/config/planfile-delegation-actors.json">planfile-delegation-actors.json</a>.</li>
+</ul>
+<h2>3. Testy wykonane 2026-07-20</h2>
+<h3>Wyniki pozytywne</h3>
+<table>
+<thead><tr><th>Test</th><th>Wynik</th><th>Co potwierdza</th></tr></thead>
+<tbody>
+<tr><td><code>npm test</code> w <code>platform/</code></td><td><strong>PASS</strong></td><td>Pełna lokalna bramka Platformy: meta, runtime, kontrakty, testkit, site-generator, Core i connector LAN.</td></tr>
+<tr><td><code>npm run test:agents</code></td><td><strong>PASS</strong></td><td>Browser Agent, inbound-email-agent i autonomy-chat-agent.</td></tr>
+<tr><td><code>npm run test:panel</code></td><td><strong>PASS</strong></td><td>Kontrakt i routing panelu WWW.</td></tr>
+<tr><td><code>bash scripts/test-inbound-email-flow.sh</code></td><td><strong>PASS</strong></td><td>Autoryzowany payload utworzył <code>PLF-527</code>; obcy nadawca został poddany kwarantannie. Test używa wewnętrznego webhooka, nie realnego IMAP.</td></tr>
+<tr><td><code>autonomy-e2e.mjs</code> po naprawie driftu env</td><td><strong>PASS</strong></td><td>Kontrakt <code>contract_mrswhl0s_b7546caab2</code>, plan <code>plan_mrswhl1t_1604916258</code>, zadanie bota <code>PLF-532</code> i eskalacja <code>PLF-533</code>.</td></tr>
+<tr><td><code>digital-twin-self-live-e2e.mjs</code></td><td><strong>PASS</strong></td><td>8/8 aktorów widzi wyłącznie własną projekcję Digital Twin.</td></tr>
+<tr><td><code>digital-twin-human-e2e.mjs</code></td><td><strong>PASS</strong></td><td>Eskalacja <code>PLF-534</code>, lokalny e-mail w Mailpit, jednorazowa akceptacja i wykonanie planu <code>plan_mrswhx33_9843bc8934</code>.</td></tr>
+<tr><td>Niezależny Playwright headless</td><td><strong>PASS</strong></td><td>Logowanie do panelu, widoczny manager delegowania i przekazanie ticketu z WWW do <code>operations-lead</code>, stan <code>ready</code>. Fixture został usunięty.</td></tr>
+<tr><td>Końcowy <code>docker compose ps</code></td><td><strong>PASS</strong></td><td>Wszystkie uruchomione usługi aplikacyjne raportowały healthy.</td></tr>
+</tbody></table>
+<h3>Wykryte problemy i ważne ograniczenia testów</h3>
+<ol>
+<li>Pierwsze live E2E autonomii zakończyło się błędem na</li>
+</ol>
+<p><code>create_plesk_mailbox</code>, ponieważ <code>hr-bridge</code> restartował się bez <code>PLESK_PANEL_XML_API_PATH</code>.</p>
+<ol>
+<li><code>node --env-file=.env scripts/validate-env.mjs</code> automatycznie dopisał pięć</li>
+</ol>
+<p>brakujących ustawień Pleska i utworzył backup <code>.env.backup-20260720T072344Z</code>.</p>
+<ol>
+<li>Po odtworzeniu bridge ponowiony live E2E przeszedł. Był to drift lokalnego</li>
+</ol>
+<p>środowiska, a nie błąd kontraktu autonomii.</p>
+<ol>
+<li>Standardowy pakiet GUI TestQL nie wykonał scenariuszy ról, ponieważ jego</li>
+</ol>
+<p>środowisko Python nie ma dodatku Playwright. Ten sam kluczowy workflow zweryfikowano niezależnym Playwright z zależności Platformy. Brak dodatku w TestQL pozostaje luką bramki testowej.</p>
+<ol>
+<li>Końcowy dashboard raportuje 16/16 usług osiągalnych, ale nadal</li>
+</ol>
+<p><code>autonomy_ready=false</code>, ponieważ istnieje 151 ticketów <code>waiting_input</code>. Interpretacja dashboardu: <code>operational_with_human_escalations</code>.</p>
+<ol>
+<li>Dashboard uznaje inbound-email-agent za zdrowy na podstawie HTTP 200, mimo</li>
+</ol>
+<p>że jego stan funkcjonalny to <code>waiting_credentials</code>. Readiness e-maila jest więc obecnie zawyżany przez ogólny dashboard.</p>
+<h2>4. Rzeczywista gotowość kanałów Foundera</h2>
+<h3>Founder → system przez e-mail</h3>
+<p><strong>Stan: częściowo zaimplementowane, aktualnie nieaktywne live.</strong></p>
+<p>Agent jest uruchomiony z <code>INBOUND_EMAIL_ENABLED=true</code>, polityką <code>strict</code>, IMAP TLS i docelowym hostem pocztowym. Jego aktualny stan to jednak:</p>
+<pre><code class="language-json">{
+  &quot;state&quot;: &quot;waiting_credentials&quot;,
+  &quot;last_poll_at&quot;: null,
+  &quot;last_poll_error&quot;: &quot;inbound_email_vault_lease_failed:username&quot;
+}</code></pre>
+<p>W konsekwencji prawdziwa wiadomość nie zostanie teraz pobrana. Kontrolowany webhook potwierdza autoryzację i utworzenie ticketu, ale nie zastępuje testu z realnej skrzynki.</p>
+<p>Nawet po dodaniu credentiali obecna implementacja kończy się na utworzeniu ticketu z:</p>
+<ul>
+<li>kolejką <code>project-operator-bot</code>;</li>
+<li>stanem <code>ready</code>;</li>
+<li>tekstem wiadomości jako <code>inputs.prompt</code>;</li>
+<li>pustą listą <code>inputs.uri_processes</code>.</li>
+</ul>
+<p>Brakuje przetestowanego, generycznego workera, który pobierze taki ticket, zinterpretuje polecenie, utworzy ograniczony kontraktem plan, wykona go i odeśle Founderowi wynik. Dziś e-mail jest bezpiecznym wejściem do rejestru pracy, a nie pełnym kanałem autonomicznego wykonania dowolnego polecenia.</p>
+<h3>System → Founder przez e-mail</h3>
+<p>**Stan bieżący: działa przez realny SMTP; wcześniejszy test lokalny ujawnił i pozwolił usunąć dwa blokery.**</p>
+<p>Test Digital Twin wysłał wiadomość trybem <code>smtp</code> z <code>transport=&quot;local&quot;</code>. Bezpieczna kontrola lease realnego SMTP zwróciła:</p>
+<pre><code class="language-json">{
+  &quot;credential_available&quot;: false,
+  &quot;error&quot;: &quot;vault_entry_not_found&quot;
+}</code></pre>
+<p>Był to stan początkowy. Po jednorazowym secret intake credential został zapisany w <code>smtp-system-email</code>. Pierwsza próba live następnie zatrzymała się na poprawnej walidacji TLS: certyfikat serwera nie zawierał <code>mail.prototypowanie.pl</code> w SAN. Nie wyłączono weryfikacji certyfikatu. Probe wykazał, że <code>prototypowanie.pl:465</code> wskazuje ten sam adres IP i przechodzi weryfikację TLS; zaszyfrowany wpis vault został przepięty na ten origin. Końcowa próba <code>PLF-569</code> zakończyła się <code>status=succeeded</code>, <code>mode=smtp</code>, <code>transport=external</code>, odbiorca <code>tom@prototypowanie.pl</code>.</p>
+<h3>Founder → system przez WWW</h3>
+<p><strong>Stan: działa lokalnie dla wspieranych workflow.</strong></p>
+<p>Zweryfikowano w prawdziwej przeglądarce headless:</p>
+<ol>
+<li>otwarcie panelu;</li>
+<li>logowanie Foundera;</li>
+<li>wejście do managera delegowania;</li>
+<li>otwarcie ticketu w Planfile;</li>
+<li>wskazanie <code>operations-lead</code>;</li>
+<li>zapis delegacji i potwierdzenie kolejki przez API.</li>
+</ol>
+<p>Ograniczenie: panel jest wystawiony na <code>127.0.0.1</code>. Founder może używać go na hoście albo przez kontrolowany dostęp LAN/VPN/tunel. Nie ma tu dowodu publicznego ingressu, TLS, IdP ani MFA dla Internetu.</p>
+<h3>Delegowanie przez samo wskazanie osoby adresem e-mail</h3>
+<p><strong>Stan: niezaimplementowane.</strong></p>
+<p>Aktualna lista delegowania jest zamkniętym katalogiem aktorów. Rekord aktora ma <code>id</code>, <code>principal</code>, <code>queue</code> i ścieżkę kontraktu, ale nie adres e-mail. Agent poczty używa adresu wyłącznie do uwierzytelnienia nadawcy; nie wyciąga adresu wykonawcy z treści i zawsze kieruje zaakceptowane polecenie do <code>project-operator-bot</code>.</p>
+<p>Nie można więc dziś bezpiecznie napisać „deleguj do osoba@example.com” i oczekiwać wykonania bez wcześniejszego zarejestrowania tej osoby jako aktora.</p>
+<h2>5. Co jeszcze nie działa w pełni autonomicznie</h2>
+<h3>P0 — konieczne dla komunikacji z Founderem</h3>
+<ol>
+<li>Umieścić username/password skrzynki <code>agent@prototypowanie.pl</code> w szyfrowanym</li>
+</ol>
+<p>vault przez jednorazowy secret intake.</p>
+<ol>
+<li>Umieścić credential realnego SMTP w vault i ustawić</li>
+</ol>
+<p><code>SMTP_EXTERNAL_REQUIRED=true</code> po kontrolowanym teście.</p>
+<ol>
+<li>Wykonać live test: realny e-mail Foundera → IMAP → autoryzacja</li>
+</ol>
+<p>SPF/DKIM/DMARC → dokładnie jeden ticket → odpowiedź realnym SMTP.</p>
+<ol>
+<li>Dodać worker <code>email-ticket-executor</code>, który realizuje</li>
+</ol>
+<p><code>prompt → intent → contract preflight → plan → execute/needs_human → reply</code>.</p>
+<ol>
+<li>Zmienić readiness inbound-email: <code>waiting_credentials</code> i <code>degraded</code> nie mogą</li>
+</ol>
+<p>być raportowane przez dashboard jako pełne healthy.</p>
+<h3>P0 — delegowanie osoby przez e-mail</h3>
+<p>Potrzebny jest osobny, fail-closed resolver:</p>
+<pre><code class="language-text">adres e-mail
+  → dokładnie jeden aktywny kontakt Org Core
+  → zweryfikowana tożsamość/principal
+  → aktywny aktor na zamkniętej liście Planfile
+  → ważny kontrakt AQL pokrywający wymagania ticketu
+  → actor_id i kolejka
+  → audytowalna delegacja</code></pre>
+<p>Reguły bezpieczeństwa:</p>
+<ul>
+<li>brak dopasowania lub wiele dopasowań → <code>waiting_input</code>, nie zgadywanie;</li>
+<li>osoba zewnętrzna bez kontraktu → zaproszenie/onboarding, nie wykonanie;</li>
+<li>samo istnienie adresu w treści e-maila nie nadaje uprawnień;</li>
+<li>delegacja nie może rozszerzać kontraktu AQL;</li>
+<li>należy potwierdzić odporność na spoofing, look-alike domains i prompt</li>
+</ul>
+<p>injection.</p>
+<h3>P1 — autonomia operacyjna</h3>
+<ul>
+<li>żywa automatyczna delegacja jest wyłączona (<code>automation_enabled=false</code>);</li>
+<li>151 ticketów oczekuje na decyzję człowieka i obniża deklarowaną gotowość;</li>
+<li>produkcyjne mutacje są domyślnie wyłączone</li>
+</ul>
+<p>(<code>AUTONOMY_MUTATIONS_ENABLED=0</code>, brak <code>PLESK_SYNC_APPLY</code>);</p>
+<ul>
+<li>realny Plesk/DNS/TLS, publiczny publish i scope proof nadal wymagają zewnętrznych</li>
+</ul>
+<p>credentiali, mandatów i weryfikacji;</p>
+<ul>
+<li>publiczny panel/chat wymaga ingressu HTTPS, IdP/MFA, rate limitu i procedury</li>
+</ul>
+<p>unieważniania dostępu;</p>
+<ul>
+<li>nie wszystkie connectory mają jeszcze pełny, jednolity envelope wyniku oraz</li>
+</ul>
+<p>natywne wymuszanie child grantu na ostatniej granicy wykonawczej;</p>
+<ul>
+<li>GUI TestQL wymaga naprawy zależności Playwright, aby oficjalna bramka ról znów</li>
+</ul>
+<p>była samodzielnie zielona.</p>
+<h2>6. Rekomendowana kolejność domknięcia</h2>
+<ol>
+<li><strong>Realny inbound e-mail:</strong> secret intake IMAP i jedno kontrolowane polecenie</li>
+</ol>
+<p>z prawdziwej domeny.</p>
+<ol>
+<li><strong>Realny outbound:</strong> SMTP vault, brak fallbacku w profilu produkcyjnym i</li>
+</ol>
+<p>odpowiedź korelowana z ticketem.</p>
+<ol>
+<li><strong>Mail-to-execution worker:</strong> tylko dla zamkniętego katalogu intentów;</li>
+</ol>
+<p>unsupported/ambiguous → Founder.</p>
+<ol>
+<li><strong>Resolver osoby po e-mailu:</strong> Org Core + aktor + kontrakt AQL + audyt.</li>
+<li><strong>Publiczne WWW:</strong> TLS, IdP/MFA i bezpieczny ingress albo formalnie</li>
+</ol>
+<p>wspierany dostęp tylko przez VPN/LAN.</p>
+<ol>
+<li><strong>Readiness i backlog:</strong> funkcjonalne health checki oraz przegląd 151</li>
+</ol>
+<p><code>waiting_input</code> przed włączeniem automatycznego dispatchera.</p>
+<ol>
+<li><strong>Kontrolowany pilot:</strong> trzy scenariusze Founder → system:</li>
+</ol>
+<p>zadanie informacyjne, zadanie odwracalne i zadanie wymagające approval; każdy musi zakończyć się odpowiedzią, evidence i brakiem duplikatu.</p>
+<h2>7. Kryterium „gotowe do użycia przez Foundera”</h2>
+<p>Kanał e-mail można uznać za gotowy dopiero, gdy jednocześnie:</p>
+<ul>
+<li>agent ma <code>state=ready</code> oraz niepusty <code>last_poll_at</code>;</li>
+<li>realna wiadomość przechodzi DMARC/DKIM/SPF i tworzy dokładnie jeden ticket;</li>
+<li>ticket otrzymuje plan z konkretnymi URI Process albo jawne <code>needs_human</code>;</li>
+<li>wspierane zadanie zostaje wykonane i zweryfikowane;</li>
+<li>wynik wraca realnym SMTP do właściwego wątku;</li>
+<li>nieznany nadawca, spoofing, duplikat i delegacja do nieznanego adresu są</li>
+</ul>
+<p>blokowane;</p>
+<ul>
+<li>sekret nie pojawia się w ticketach, odpowiedziach ani logach.</li>
+</ul>
+<p>Do tego czasu zalecany kanał operacyjny to lokalny panel WWW/Planfile, a e-mail należy traktować jako funkcję w fazie aktywacji produkcyjnej.</p>
+<h2>8. Audyt konfiguracji nowej instancji i domeny <code>subactor.com</code></h2>
+<h3>Zgodność <code>.env.example</code> z <code>.env</code></h3>
+<p>Porównanie wykonane wyłącznie po nazwach zmiennych, bez ujawniania wartości:</p>
+<pre><code class="language-json">{
+  &quot;env&quot;: 479,
+  &quot;example&quot;: 479,
+  &quot;only_env&quot;: [],
+  &quot;only_example&quot;: []
+}</code></pre>
+<p><code>node --env-file=.env scripts/validate-env.mjs</code> zakończył się wynikiem <code>Environment contract OK</code>. Na poziomie nazw pól <code>.env.example</code> jest więc kompletny względem bieżącego <code>.env</code> i kanonicznego <code>config/env-contract.json</code>.</p>
+<p>Szablon nie zawiera realnych haseł ani tokenów. Sekrety wewnętrzne mają placeholdery <code>__GENERATE_*__</code>, a credentiale usług zewnętrznych są puste. <code>make init</code> tworzy <code>.env</code> z prawami <code>0600</code>, generuje wspierane sekrety wewnętrzne, dobiera porty i sieć oraz migruje brakujące pola z backupem.</p>
+<p>Nie oznacza to jednak, że czysty klon jest obecnie kompletną, bezobsługową instalacją:</p>
+<ul>
+<li>profil domyślny jest profilem lokalnym/deweloperskim: mock Plesk, Mailpit,</li>
+</ul>
+<p>wyłączone mutacje autonomii i brak realnych credentiali zewnętrznych;</p>
+<ul>
+<li>szablon zawiera konkretne adresy tożsamości</li>
+</ul>
+<p><code>@prototypowanie.pl</code>; nie są sekretami, ale nie są neutralnymi wartościami dla nowego tenanta;</p>
+<ul>
+<li>Compose wymaga czterech ignorowanych przez Git plików:</li>
+</ul>
+<p><code>.secrets/browser-agent-vault-key</code>, <code>.secrets/mock-plesk-token</code>, <code>.secrets/contractor-chat-relay-token</code> i <code>.secrets/autonomy-chat-control-token</code>;</p>
+<ul>
+<li><code>make init</code> uruchamia tylko <code>init-env.mjs</code> i walidator. Nie tworzy tych</li>
+</ul>
+<p>czterech plików. Skrypt <code>configure-autonomy-chat.mjs</code> tworzy dwa z nich, ale nie jest częścią <code>make init</code>; nie znaleziono analogicznego kroku init dla pozostałych dwóch.</p>
+<p>Wniosek: **kontrakt zmiennych jest kompletny, lecz bootstrap czystej instancji nie jest jeszcze w pełni samowystarczalny**. Potrzebny jest jeden idempotentny <code>init-secrets</code>, wywoływany przez <code>make init</code>, oraz test uruchomienia z czystego checkoutu.</p>
+<h3>Konfiguracja przez WWW</h3>
+<p>Nie ma obecnie strony pozwalającej edytować wszystkie 480 zmiennych i nadpisywać nimi <code>.env</code>. Endpoint <code>/api/runtime-config</code> jest tylko do odczytu i publikuje bezpieczne metadane, a nie pełną zawartość środowiska.</p>
+<p>Panel <strong>Integracje</strong> obsługuje typowane profile dla 12 providerów i 65 pól, w tym Pleska, SMTP i komunikatory. Sekrety integracji są szyfrowane, maskowane przy odczycie i mogą działać jako dynamiczny profil systemowy bez zapisywania ich do <code>.env</code>. Jest to jednak częściowa warstwa override, nie uniwersalny edytor konfiguracji.</p>
+<p>Docelowa implementacja powinna rozdzielać:</p>
+<ol>
+<li>bazową konfigurację instalacyjną <code>.env</code>/Compose;</li>
+<li>typowane, dozwolone override runtime dla pól niesekretnych;</li>
+<li>szyfrowany vault dla sekretów;</li>
+<li>widok wartości efektywnej ze źródłem <code>default/env/panel/vault</code>, walidacją,</li>
+</ol>
+<p>audytem, rollbackiem i oznaczeniem <code>restart required</code>.</p>
+<p>Nie należy umożliwiać zdalnej edycji wszystkich pól. Klucze vaulta, token administracyjny, bindy, ścieżki i parametry sieci Docker powinny pozostać poza zwykłym panelem runtime.</p>
+<h3>Czy system może sam utworzyć pocztę na Plesku dla <code>subactor.com</code></h3>
+<p>Stan jest <strong>częściowo gotowy technicznie, ale nie domknięty end-to-end</strong>:</p>
+<ul>
+<li>zapisany profil <code>plesk_subscription</code> poprawnie uwierzytelnił dostęp do</li>
+</ul>
+<p>subskrypcji/domeny <code>subactor.com</code> na realnym panelu Plesk;</p>
+<ul>
+<li>operacja <code>plesk.mailbox.create</code> potrafi wygenerować silne hasło, utworzyć</li>
+</ul>
+<p>skrzynkę i schować credential w vault bez zwracania sekretu do planu/logów;</p>
+<ul>
+<li>bieżący systemowy connector Pleska nadal używa jednak</li>
+</ul>
+<p><code>PLESK_MODE=mock</code> i <code>http://mock-plesk:8082</code>;</p>
+<ul>
+<li>profil <code>plesk_subscription</code> służy do probe subskrypcji. Nie jest profilem</li>
+</ul>
+<p>systemowym <code>plesk</code>, z którego korzysta autonomiczne tworzenie skrzynek;</p>
+<ul>
+<li>utworzone credentiale trafiają pod ogólny identyfikator</li>
+</ul>
+<p><code>plesk-mailbox-&lt;hash&gt;</code>, podczas gdy inbound oczekuje <code>agent-mailbox-runtime</code>, a outbound SMTP <code>smtp-system-email</code>;</p>
+<ul>
+<li>operacja nie aktualizuje atomowo <code>INBOUND_AGENT_EMAIL</code>,</li>
+</ul>
+<p><code>REAL_SYSTEM_EMAIL</code>, <code>SMTP_EXTERNAL_USER/FROM</code>, polityki inbound ani kontaktu Org Core. Zmiana części pól startowych wymaga też odtworzenia procesu;</p>
+<ul>
+<li>przy polityce <code>existing=accept</code> istniejąca skrzynka może dać sukces bez</li>
+</ul>
+<p>credentialu. System nie odzyska wtedy hasła automatycznie;</p>
+<ul>
+<li>aktualny agent inbound nadal ma <code>waiting_credentials</code>, a credential realnego</li>
+</ul>
+<p>SMTP nie istnieje w oczekiwanym wpisie vault.</p>
+<p>Wniosek: **dzisiaj system nie potrafi autonomicznie wykonać całego procesu „utwórz skrzynki na <code>subactor.com</code> → podepnij inbound i SMTP → przełącz tożsamości → skomunikuj się z Founderem”**. Ma większość klocków, ale brakuje bezpiecznej orkiestracji i aktywnego live connectora.</p>
+<p>Minimalne domknięcie:</p>
+<ol>
+<li>zapisać i aktywować systemowy profil <strong>Plesk API</strong> w trybie live;</li>
+<li>dodać operację <code>provision_mail_identity</code>, która tworzy lub kontrolowanie</li>
+</ol>
+<p>resetuje skrzynkę, wiąże credential z rolą inbound/SMTP i aktualizuje typowane override w jednej audytowanej transakcji;</p>
+<ol>
+<li>rozdzielić skrzynkę poleceń systemu od adresu Foundera; adres Foundera jest</li>
+</ol>
+<p>zweryfikowaną tożsamością człowieka, a nie wartością do nadpisania;</p>
+<ol>
+<li>uaktualnić policy/Org Core/AQL i odtworzyć tylko usługi wymagające restartu;</li>
+<li>sprawdzić MX, SPF, DKIM i DMARC, logowanie IMAP, realną wysyłkę SMTP,</li>
+</ol>
+<p>korelację odpowiedzi oraz dokładnie jeden ticket na wiadomość;</p>
+<ol>
+<li>w produkcji ustawić fail-closed dla wysyłki, np.</li>
+</ol>
+<p><code>SMTP_EXTERNAL_REQUIRED=true</code>, bez cichego fallbacku do Mailpit.</p>
+<h2>9. Zrealizowane naprawy kodu (2026-07-20)</h2>
+<p>Poniższe pozycje zostały zaimplementowane i pokryte testami jednostkowymi w lokalnej bramce (<code>npm test</code>, <code>test:testkit</code>, <code>test:meta</code>). Nie zmieniają one faktu, że realne credentiale IMAP/SMTP, DNS/MX/SPF/DKIM oraz publiczny ingress pozostają zadaniami operacyjnymi poza tym repo.</p>
+<h3>9.1. Uczciwy health/readiness (dot. §3.6 i P0.5) — <strong>zrobione</strong></h3>
+<p>Dashboard rozróżnia teraz osiągalność transportową (<code>ok</code>, HTTP 200) od gotowości funkcjonalnej (<code>ready</code>). Sonda czyta pole <code>state</code> z odpowiedzi <code>/health</code> i traktuje <code>waiting_credentials</code> oraz <code>degraded</code> jako **nie w pełni gotowe**: krytyczna usługa w takim stanie nie psuje <code>ok</code>, ale blokuje <code>autonomy_ready</code> i daje interpretację <code>operational_with_degraded_services</code>. Panel pokazuje takie usługi na żółto z opisem stanu. Inbound-email w <code>waiting_credentials</code> nie jest już raportowany jako pełne healthy.</p>
+<ul>
+<li><code>core/services/control/src/system-dashboard.mjs</code> (<code>evaluateServiceReadiness</code>,</li>
+</ul>
+<p><code>services_degraded</code>/<code>critical_degraded</code>);</p>
+<ul>
+<li><code>core/services/control/src/server.mjs</code> (<code>probeSystemService</code> czyta body);</li>
+<li><code>core/services/control/public/app.js</code>, <code>.../public/style.css</code>;</li>
+<li>testy: <code>testkit/tests/system-dashboard.test.mjs</code>.</li>
+</ul>
+<h3>9.2. Idempotentny bootstrap sekretów (dot. §8) — <strong>zrobione</strong></h3>
+<p><code>make init</code> uruchamia teraz <code>scripts/init-secrets.mjs</code>, który idempotentnie tworzy pięć plików <code>.secrets/*</code> wymaganych przez Compose i <strong>nigdy</strong> nie nadpisuje istniejących. Trzy sekrety losowe są generowane offline, <code>contractor-chat-relay-token</code> jest reużywany z <code>contractor-portal/.env</code>, a <code>autonomy-chat-control-token</code> dostaje jawnie niefunkcjonalny placeholder z ostrzeżeniem, bo realny token musi zostać wykuty przez control po <code>make up</code> (<code>make configure-autonomy-chat</code>).</p>
+<ul>
+<li><code>platform/scripts/init-secrets.mjs</code>, <code>platform/Makefile</code>;</li>
+<li>testy: <code>platform/test/init-secrets.test.mjs</code> (czysty checkout, idempotencja, perms 0600).</li>
+</ul>
+<h3>9.3. Resolver e-mail → aktor, fail-closed (dot. „P0 — delegowanie osoby”) — <strong>rdzeń zrobiony</strong></h3>
+<p>Nowy, czysty resolver realizuje łańcuch `adres → dokładnie jeden aktywny kontakt → principal → dokładnie jeden aktywny aktor z zamkniętej listy → pokrycie kontraktu AQL → actor_id + kolejka`. Brak dopasowania osoby nieznanej → <code>onboarding</code>; wiele dopasowań lub luka pokrycia → <code>waiting_input</code>; sam adres w treści nie nadaje uprawnień; look-alike domeny nie pasują (dopasowanie ścisłe po normalizacji); delegacja nie może rozszerzyć kontraktu. Wystawiony jako read-only <code>POST /api/delegation/resolve-email</code>. Źródłem aktywnych kontaktów jest ta sama polityka co ścieżka autoryzacji inbound.</p>
+<ul>
+<li><code>core/services/control/src/delegation-actor-resolver.mjs</code>;</li>
+<li><code>core/services/control/src/routes/delegation.mjs</code>, <code>.../server.mjs</code>;</li>
+<li>testy: <code>testkit/tests/delegation-actor-resolver.test.mjs</code> (10 przypadków, w tym</li>
+</ul>
+<p>spoofing/look-alike/ambiguity/coverage/expiry).</p>
+<p>Pozostaje: podłączyć żywe kontakty Org Core jako alternatywne źródło oraz ścieżkę onboardingu osoby zewnętrznej.</p>
+<h3>9.4. Worker mail → wykonanie (dot. P0.4) — <strong>zrobione (bez auto-mutacji), wpięte w endpoint</strong></h3>
+<p>Dostarczono przetestowany rdzeń orkiestracji `prompt → intent (zamknięty katalog) → preflight kontraktu → plan → execute/needs_human → reply`. Fail-closed: nierozpoznane/niejednoznaczne polecenie nie jest zgadywane, luka kontraktu i prośba o approval → <code>needs_human</code>, każde zakończenie zawsze generuje odpowiedź do Foundera, a treść odpowiedzi jest redagowana z sekretów. Dodano kotwicę korelacji <code>inputs.source</code> w tickecie inbound (message_id/reply_to/subject) oraz nagłówki wątkowania <code>In-Reply-To</code>/<code>References</code>/<code>Message-ID</code> w wysyłce SMTP bridge, aby odpowiedź trafiała we właściwy wątek.</p>
+<p>Worker jest wpięty realnymi zależnościami i wystawiony jako <code>POST /api/email-tickets/execute</code> (scope <code>routing:manage</code>):</p>
+<ul>
+<li><code>recognizeIntent</code> → deterministyczny rejestr intent-packów (**zamknięty</li>
+</ul>
+<p>katalog**, bez fallbacku LLM/HR): <code>resolveIntentPack</code> → `{aql_model, situation, required_capabilities, uri_hint}<code>; brak dopasowania → </code>unsupported_operation`;</p>
+<ul>
+<li><code>coverageFor</code> → <code>actorCoversRequirements</code> względem kontraktu</li>
+</ul>
+<p><code>project-operator-bot</code> (delegacja nie rozszerza zakresu);</p>
+<ul>
+<li><code>createPlan</code> → istniejące <code>createPlan</code> (plan <code>proposed</code>);</li>
+<li><code>executePlan</code> → <strong>domyślnie zawsze <code>needs_human</code> (approval_required)</strong>, bo</li>
+</ul>
+<p><code>AUTONOMY_MUTATIONS_ENABLED=0</code>; realny <code>executeApprovedPlan</code> uruchamia się tylko przy jawnie włączonych mutacjach i <code>apply=true</code>. Founder dostaje w odpowiedzi <code>plan_id</code> do zatwierdzenia;</p>
+<ul>
+<li><code>sendReply</code> → bridge <code>email.send</code> z argumentami wątkowania (Mailpit lokalnie,</li>
+</ul>
+<p>realny SMTP po dzierżawie).</p>
+<p>Pliki:</p>
+<ul>
+<li><code>core/services/control/src/email-ticket-executor.mjs</code> (rdzeń);</li>
+<li><code>core/services/control/src/email-ticket-worker.mjs</code> (recognizer/gate/glue);</li>
+<li><code>core/services/control/src/routes/email-tickets.mjs</code>, <code>.../routes/dispatch.mjs</code>, <code>.../server.mjs</code>;</li>
+<li><code>agents/services/inbound-email-agent/src/processor.mjs</code> (<code>inputs.source</code>);</li>
+<li><code>connectors/services/bridge/src/server.mjs</code> (<code>sendSmtp</code> threading);</li>
+<li>testy: <code>testkit/tests/email-ticket-executor.test.mjs</code> (11) i</li>
+</ul>
+<p><code>testkit/tests/email-ticket-worker.test.mjs</code> (6, w tym recognizer na realnym rejestrze).</p>
+<p>Pozostaje wyłącznie operacyjne: realny SMTP/IMAP oraz świadoma decyzja o włączeniu <code>AUTONOMY_MUTATIONS_ENABLED</code> dla ścieżki auto-wykonania.</p>
+<h3>9.5. Poza zakresem zmian kodu</h3>
+<p>Bez zmian pozostają pozycje wymagające dostępu operacyjnego: secret intake realnego IMAP/SMTP do vaulta, DNS/MX/SPF/DKIM/DMARC, publiczny HTTPS ingress/IdP/MFA oraz live connector Plesk. Kolejność ich domknięcia jak w §6.</p>
+<hr />
+<p>Raport nie zawiera sekretów. Testy mutacyjne dotyczyły środowiska lokalnego i mock Pleska. Produkcyjny apply, DNS cutover ani wysłanie prawdziwej wiadomości nie zostały wykonane.</p>
+<h2>10. Globalny dowód wykonania procesu</h2>
+<p>Po decyzji Foundera z 2026-07-20 wprowadzono niezmiennik wykonawczy:</p>
+<pre><code class="language-text">ticket utworzony wcześniej
+  + manifest SUBACTOR_PROCESS_MANIFEST_V1
+  + co najmniej jedna definicja AQL/EQL/OQL/URI
+  + zgodność bieżącego OQL lub dokładnego URI
+  + idempotency key
+  -&gt; wykonanie connectora
+  -&gt; SUBACTOR_PROCESS_RESULT_V1
+  -&gt; wynik zbiorczy + evidence + referencje do logów w tym samym tickecie</code></pre>
+<p>Guard działa fail-closed w <code>hr-bridge</code> dla <code>/execute</code> i <code>/processes/run</code>, czyli na ostatniej wspólnej granicy przed efektem. Control automatycznie tworzy ticket dla zatwierdzonych planów, bezpośrednich URI Process i live capability preflightów. Brama LAN nie wywołuje już executora bezpośrednio; <code>/run</code> przechodzi przez bridge i wymaga <code>ticket_id</code> oraz <code>idempotency_key</code>.</p>
+<p>Dowód live:</p>
+<ul>
+<li>próba bez ticketu: <code>409 process_ticket_required</code>, brak wykonania;</li>
+<li>poprawny proces: ticket <code>PLF-540</code> powstał przed wykonaniem</li>
+</ul>
+<p><code>time://host/clock/query/now</code>;</p>
+<ul>
+<li>poprawny proces przez bramę LAN: ticket <code>PLF-542</code> powstał przed wykonaniem,</li>
+</ul>
+<p>a wywołanie przeszło <code>gateway → bridge guard → urirun-node</code>;</p>
+<ul>
+<li>po izolacji executora ticket <code>PLF-544</code> potwierdził poprawną ścieżkę control,</li>
+</ul>
+<p>a <code>PLF-545</code> ścieżkę <code>LAN gateway → bridge → urirun-node</code>;</p>
+<ul>
+<li>ticket zawiera manifest, dokładny URI, rezultat kroku, identyfikator</li>
+</ul>
+<p>wykonania, referencje do <code>bridge-audit.jsonl</code>/<code>audit.jsonl</code> i stan <code>done</code>.</p>
+<p>Regresja po wdrożeniu: runtime 80/80, bridge 26/26, LAN gateway 3/3 oraz core 158/158. Oba warianty Compose przechodzą walidację konfiguracji.</p>
+<p>Administracyjny bypass został domknięty w <code>PLF-543</code>:</p>
+<ul>
+<li><code>urirun-node</code> nie publikuje żadnego portu hostowego;</li>
+<li>node działa wyłącznie w sieci <code>uri-executor</code>;</li>
+<li>oddzielny <code>urirun-node-token</code> jest generowany przez <code>make init</code> i montowany</li>
+</ul>
+<p>tylko do node oraz bridge; nie jest wartością ogólnego <code>.env</code>;</p>
+<ul>
+<li>gateway i control nie osiągają DNS/portu node, a gateway pobiera health/routes</li>
+</ul>
+<p>przez bridge;</p>
+<ul>
+<li>próba <code>/processes/run</code> bez ticketu nadal kończy się</li>
+</ul>
+<p><code>409 process_ticket_required</code>;</p>
+<ul>
+<li>test pokrycia potwierdził 541 tras i 95 schematów; uzupełniono brakującego</li>
+</ul>
+<p>właściciela <code>dns://</code> (<code>urirun-connector-namecheap-dns</code>).</p>
+<p>Na poziomie wdrożenia Compose nie istnieje już wspierana ścieżka wykonania URI Process omijająca ticket guard. Osoba z uprawnieniami root/Docker nadal może technicznie wejść do kontenera lub odczytać Docker secret; jest to granica administracyjna hosta, a nie API autonomii i wymaga osobnego audytu dostępu do hosta.</p>
+<h2>11. Dynamiczna komunikacja człowiek ↔ LLM przez formularze Markdown</h2>
+<p>W ramach ticketu implementacyjnego <code>PLF-553</code> dodano deklaratywny format <code>subactor.interactive-form.v1</code>. LLM może zaproponować formularz w ścisłym JSON Schema, a system może przedstawić go w Markdown:</p>
+<pre><code class="language-`markdown"></code></pre>
+<p>{ &quot;schema&quot;: &quot;subactor.interactive-form.v1&quot;, &quot;title&quot;: &quot;Wybierz priorytet&quot;, &quot;description&quot;: &quot;Odpowiedź trafi do ticketu.&quot;, &quot;fields&quot;: [ { &quot;id&quot;: &quot;priority&quot;, &quot;type&quot;: &quot;radio&quot;, &quot;label&quot;: &quot;Priorytet&quot;, &quot;required&quot;: true, &quot;options&quot;: [ {&quot;value&quot;: &quot;normal&quot;, &quot;label&quot;: &quot;Normalny&quot;}, {&quot;value&quot;: &quot;high&quot;, &quot;label&quot;: &quot;Wysoki&quot;} ] } ], &quot;submit&quot;: {&quot;kind&quot;: &quot;ticket.respond&quot;, &quot;label&quot;: &quot;Przekaż odpowiedź&quot;}, &quot;single_use&quot;: true }</p>
+<pre><code></code></pre>
+<h3>Przepływ i miejsca zapisu</h3>
+<pre><code class="language-text">prompt człowieka
+  → LLM (strict JSON Schema)
+  → walidacja serwera i biała lista pól
+  → ticket Planfile z manifestem OQL/URI
+  → publikacja deklaracji Markdown
+  → render DOM bez wykonywania HTML
+  → odpowiedź człowieka
+      ├─ ticket.respond → Planfile
+      ├─ uri.process → nowy ticket wykonawczy → bridge guard → urirun
+      └─ secret_link → jednorazowy URL → zaszyfrowany Browser Agent vault
+  → audyt + status submission</code></pre>
+<p>Zwykłe odpowiedzi są przechowywane w <code>interactive-forms.json</code> z prawami store <code>0600</code> oraz dopisywane do powiązanego ticketu Planfile. URI Process otrzymuje osobny ticket wykonawczy utworzony przez <code>runTrackedUriProcess</code> <strong>przed</strong> wykonaniem. Hasło, token ani klucz nie mogą być polem zwykłego formularza: serwer wymaga <code>secret_link</code>, a sekret trafia z jednorazowej strony bezpośrednio do vaulta i nie przechodzi przez control, Markdown, ticket ani log formularza.</p>
+<p>Dozwolone typy pól to: <code>text</code>, <code>textarea</code>, <code>email</code>, <code>url</code>, <code>number</code>, <code>select</code>, <code>radio</code>, <code>checkbox</code>, <code>date</code> i <code>secret_link</code>. Zabroniono surowego HTML, skryptów, CSS, dowolnych metod/URL formularza, nieznanych właściwości, nazw sugerujących sekret, wildcardów URI, dodatkowych pól odpowiedzi i kluczy prototype pollution. Renderer używa <code>document.createElement</code>/<code>textContent</code>; test kontraktowy blokuje <code>innerHTML</code>, <code>insertAdjacentHTML</code>, <code>eval</code> i <code>new Function</code> w tym module.</p>
+<p>API:</p>
+<ul>
+<li><code>POST /api/interactive-forms/propose</code> — LLM proponuje, serwer waliduje,</li>
+</ul>
+<p>tworzy ticket i publikuje;</p>
+<ul>
+<li><code>POST /api/interactive-forms</code> — publikuje zweryfikowany JSON lub dokładnie</li>
+</ul>
+<p>jeden blok Markdown <code>subactor-form</code>;</p>
+<ul>
+<li><code>GET /api/interactive-forms[/:id]</code> — lista/szczegóły;</li>
+<li><code>POST /api/interactive-forms/:id/submit</code> — walidowana odpowiedź do ticketu</li>
+</ul>
+<p>lub dokładnego URI Process;</p>
+<ul>
+<li><code>POST /api/interactive-forms/:id/secret-link</code> — krótko ważny, jednorazowy</li>
+</ul>
+<p>link dla providera <code>mailbox</code> albo <code>plesk</code>.</p>
+<p>Panel Foundera udostępnia te operacje w zakładce <strong>Asystent LLM</strong>: prompt dla LLM, edytor bloku Markdown, listę opublikowanych formularzy, bezpieczny podgląd, wysłanie odpowiedzi oraz utworzenie linku do sejfu.</p>
+<h3>Dowód testowy i live</h3>
+<ul>
+<li>8/8 testów walidatora, publikacji, Planfile, single-use, trwałości dowodu i</li>
+</ul>
+<p>dokładnego URI;</p>
+<ul>
+<li>20/20 testów kontraktu panelu, w tym brak wykonania modelowego HTML;</li>
+<li>mock OpenRouter potwierdził endpoint <code>subactor_interactive_form</code> i ścisły</li>
+</ul>
+<p>JSON Schema;</p>
+<ul>
+<li>live OpenRouter zaproponował formularz <code>form_mrt0rl8y_97d988fe75</code>; control</li>
+</ul>
+<p>zwalidował go, opublikował i utworzył <code>PLF-563</code>, który po ponownym odczycie nadal miał <code>HTTP 200</code>, <code>state=waiting_input</code>, manifest i ścisłą korelację form/ticket;</p>
+<ul>
+<li>Compose po zmianach jest poprawny, <code>hr-control</code> i <code>llm-gateway</code> zostały</li>
+</ul>
+<p>przebudowane, uruchomione i osiągnęły <code>healthy</code>;</p>
+<ul>
+<li>live formularz <code>form_mrt0nl1l_78b92b4fa8</code> utworzył wcześniej trwały ticket</li>
+</ul>
+<p><code>PLF-562</code>, skorelowany przez <code>plan_id=interactive-form:&lt;form_id&gt;</code>; po odpowiedzi ticket nadal istniał (<code>HTTP 200</code>, <code>status=open</code>, <code>execution.state=ready</code>) i zawierał manifest;</p>
+<ul>
+<li>ten sam test wygenerował jednorazowy request vault</li>
+</ul>
+<p><code>intake_mrt0nlzm_8ada19afe7</code> i zapisał niesekretną odpowiedź <code>form-response_mrt0nm05_a5e6500bb1</code> przez <code>ticket.respond</code>.</p>
+<p>Pierwszy test live wykrył anomalię współbieżnego store Planfile: <code>PLF-557</code> istniał przy publikacji i odpowiedzi (co potwierdzają trzy wpisy audytu), lecz później zniknął z trwałego sprint store między zapisami <code>PLF-554</code> i <code>PLF-558</code>. Nie został uznany za dowód końcowy. W odpowiedzi dodano fail-closed <code>ensureEvidenceTicket</code>: przed submission, utworzeniem linku vault i tym samym przed URI Process control ponownie pobiera ticket, sprawdza etykietę, manifest oraz korelację <code>interactive-form:&lt;form_id&gt;</code>. Powtórzenie operacji na starym formularzu zwraca teraz <code>409 interactive_form_evidence_ticket_missing</code> i nie wykonuje skutku. Źródło utraty zostało następnie odtworzone i naprawione w <code>PLF-564</code>; szczegóły znajdują się w §12.</p>
+<h3>Pozostałe ograniczenia</h3>
+<ul>
+<li>formularze są dziś dostępne w lokalnym panelu; publiczna wymiana przez WWW</li>
+</ul>
+<p>nadal wymaga HTTPS, IdP/MFA, rate limitu i polityki sesji;</p>
+<ul>
+<li><code>secret_link</code> obsługuje obecnie tylko gotowe intake <code>mailbox</code> i <code>plesk</code>;</li>
+<li>LLM nie może sam wymyślić URI: dla <code>uri.process</code> potrzebny jest konkretny URI</li>
+</ul>
+<p>w zatwierdzonym kontekście, a serwer/bridge nadal egzekwują dokładny scope;</p>
+<ul>
+<li>odpowiedzi formularzy nie zastępują brakujących realnych credentiali</li>
+</ul>
+<p>IMAP/SMTP ani konfiguracji DNS;</p>
+<ul>
+<li>nie dodano jeszcze dostarczania linku formularza jako bezpiecznego,</li>
+</ul>
+<p>publicznego URL w realnym wątku e-mail; obecnie Founder otwiera go w panelu.</p>
+<ul>
+<li>pozostaje długookresowy monitoring Planfile w realnym ruchu; deterministyczna</li>
+</ul>
+<p>utrata ze starego snapshotu jest naprawiona i pokryta testem 8 writerów/201 ticketów, a formularze nadal niezależnie wymagają aktualnego dowodu.</p>
+<p>Po tej zmianie najlepszym wspieranym kanałem operacyjnym pozostaje panel WWW, ale komunikacja nie musi już polegać na ręcznej edycji JSON-u: system może dynamicznie poprosić człowieka o minimalny, typowany zestaw danych i zachować pełny dowód przed/po wykonaniu.</p>
+<h2>12. Trwałość Planfile przy współbieżnych writerach</h2>
+<p>Naprawę wykonano w osobnym, utworzonym wcześniej tickecie <code>PLF-564</code> z EQL/OQL. Utrata <code>PLF-557</code> nie wynikała z braku blokady samego zapisu. Przyczyną był interfejs <code>Store.save_sprint()</code>:</p>
+<pre><code class="language-text">writer A: load_sprint() → stary snapshot
+writer B: create_ticket() → nowy ticket zapisany pod lockiem
+writer A: save_sprint(stary snapshot) → lock → pełne nadpisanie pliku
+wynik: ticket writera B znika</code></pre>
+<p>Scenariusz został odtworzony deterministycznie w izolowanym katalogu:</p>
+<pre><code class="language-json">{&quot;ticket_id&quot;:&quot;PLF-001&quot;,&quot;survived&quot;:false}</code></pre>
+<p><code>save_sprint()</code> pobiera teraz świeży stan <strong>wewnątrz</strong> <code>mutation_lock()</code> i scala snapshot zamiast zastępować nim cały sprint:</p>
+<ul>
+<li>tickety nieobecne w przekazanym snapshotcie są zachowywane;</li>
+<li>jawne usuwanie nadal musi używać dedykowanego API delete;</li>
+<li>przy konflikcie tego samego ticketu wygrywa rekord z nowszym <code>updated_at</code>,</li>
+</ul>
+<p>więc stary bulk-save nie cofa nowszego przejścia lifecycle;</p>
+<ul>
+<li><code>save_backlog()</code> korzysta z tych samych gwarancji.</li>
+</ul>
+<p>Dowody:</p>
+<ul>
+<li>ta sama deterministyczna reprodukcja po poprawce: <code>survived=true</code>;</li>
+<li>21/21 testów store, fast mirror i archiwizacji;</li>
+<li>pełna bramka Planfile: 248 passed, 6 skipped;</li>
+<li>po wdrożeniu obrazu test 8 procesów utworzył 201/201 unikalnych ticketów w</li>
+</ul>
+<p>izolowanym katalogu tymczasowym, bez luk ID i z poprawnymi exit code;</p>
+<ul>
+<li>po restarcie produkcyjnego kontenera <code>PLF-562</code>, <code>PLF-563</code> i <code>PLF-564</code></li>
+</ul>
+<p>pozostały odczytywalne z właściwymi stanami.</p>
+<p>Pliki źródłowe:</p>
+<ul>
+<li><code>../../../semcod/planfile/planfile/core/store.py</code>;</li>
+<li><code>../../../semcod/planfile/tests/test_store_concurrency.py</code>.</li>
+</ul>
+<p>Fail-closed <code>ensureEvidenceTicket</code> w formularzach pozostaje celowo aktywny: naprawa trwałości warstwy bazowej nie usuwa potrzeby sprawdzenia dowodu na ostatniej granicy przed skutkiem.</p>
+<p>Aktualny Compose zbudował poprawkę z lokalnego źródła <code>/home/tom/github/semcod/planfile</code>. Aby gwarancja przeszła na nową instancję, zmianę trzeba jeszcze opublikować jako commit/tag Planfile i przypiąć wersję źródła/obrazu w Platformie; sama lokalna przebudowa nie jest dystrybucją poprawki do czystego checkoutu na innym hoście.</p>
+<h2>13. Dostęp Foundera i hasło dostarczane e-mailem</h2>
+<p>Zmianę wykonano pod utworzonym wcześniej ticketem <code>PLF-569</code>. Ticket zawiera manifest <code>subactor.process-manifest.v1</code> z AQL, EQL, OQL i URI, w tym jawny krok <code>deliver / email.send</code>. Bridge zweryfikował, że ticket powstał przed próbą wysyłki oraz że <code>plan_id</code>, krok i operacja odpowiadają manifestowi.</p>
+<h3>Zaimplementowany przepływ</h3>
+<p>Lokalne wejście Foundera jest dostępne pod:</p>
+<pre><code class="language-text">http://127.0.0.1:8091/founder</code></pre>
+<p><code>GET /founder</code> przekierowuje do panelu Asystenta z akcją <code>founder-login</code>. Docelowym adresem konfiguracyjnym pozostaje <code>FOUNDER_PORTAL_URL</code>; po uruchomieniu bezpiecznego ingressu powinien otrzymać wartość <code>https://founder.subactor.com/</code>.</p>
+<p>Bootstrap dostępu działa następująco:</p>
+<ol>
+<li>uprawniony administrator wywołuje <code>POST /api/founder/access/bootstrap</code> z</li>
+</ol>
+<p>identyfikatorem istniejącego ticketa procesu;</p>
+<ol>
+<li>control tworzy losowe jednorazowe hasło, ale zapisuje wyłącznie jego hash;</li>
+<li>hasło może być wysłane wyłącznie przez <code>email.send</code> z</li>
+</ol>
+<p><code>require_external=true</code>; Mailpit nie jest dozwolonym kanałem;</p>
+<ol>
+<li>Founder wpisuje e-mail i hasło na stronie;</li>
+<li>poprawne hasło jest atomowo zużywane i wymieniane na ograniczoną sesję w</li>
+</ol>
+<p>cookie <code>HttpOnly; SameSite=Strict</code>; token sesji nie jest zwracany w JSON ani zapisywany w localStorage;</p>
+<ol>
+<li>kolejne użycie hasła jest odrzucane, obowiązuje czas ważności i limit prób;</li>
+<li>mutacje wykonywane przez sesję cookie wymagają zgodnego <code>Origin</code>, co</li>
+</ol>
+<p>ogranicza CSRF; sesja ma scopes Foundera skonfigurowane osobno i nie zawiera <code>tokens:manage</code> ani dostępu do sekretów integracji.</p>
+<p>Hasło nie trafia do Planfile, control audit ani bridge execution store. Bridge utrwala identyfikator kroku i operację, ale nie argument <code>body</code>; wynik SMTP zawiera wyłącznie tryb transportu i odbiorcę.</p>
+<h3>Konfiguracja nowej instancji</h3>
+<p>Do <code>.env.example</code>, aktywnego <code>.env</code> i <code>config/env-contract.json</code> dodano:</p>
+<ul>
+<li><code>FOUNDER_PORTAL_URL</code>;</li>
+<li><code>FOUNDER_ACCESS_PASSWORD_TTL_MINUTES</code>;</li>
+<li><code>FOUNDER_ACCESS_SESSION_TTL_MINUTES</code>;</li>
+<li><code>FOUNDER_ACCESS_MAX_ATTEMPTS</code>;</li>
+<li><code>FOUNDER_ACCESS_STORE_FILENAME</code>;</li>
+<li><code>FOUNDER_ACCESS_SCOPES</code>.</li>
+</ul>
+<p>Gate kompletności wykrył również wcześniejszy brak <code>URIRUN_NODE_TOKEN_FILE</code> w szablonie. Pole dodano z pustą, bezsekretną wartością domyślną. Kontrakt środowiska raportuje teraz 486 zadeklarowanych zmiennych i brak referencji Compose spoza <code>.env.example</code>.</p>
+<h3>Testy i live preflight</h3>
+<ul>
+<li>3/3 nowych testów: brak plaintextu w store/API/audycie, jednorazowość,</li>
+</ul>
+<p><code>HttpOnly</code>, limit kanału external-only;</p>
+<ul>
+<li>pełny gate control w workspace Platformy: 161/161;</li>
+<li><code>hr-control</code> i <code>hr-bridge</code> przebudowane i <code>healthy</code>;</li>
+<li>live <code>GET /founder</code>: HTTP 302 do ekranu logowania;</li>
+<li>live <code>GET /api/founder/access/status</code>: kanoniczny e-mail zamaskowany i</li>
+</ul>
+<p><code>password_delivery=external_email_only</code>;</p>
+<ul>
+<li>kontrolowana próba <code>PLF-569</code> zakończyła się HTTP 503 i dowodem</li>
+</ul>
+<p><code>smtp_vault_secret_unavailable:vault_entry_not_found</code>;</p>
+<ul>
+<li>stan Mailpit przed i po próbie był identyczny, więc hasło nie zostało</li>
+</ul>
+<p>zdegradowane do kanału lokalnego;</p>
+<ul>
+<li>skan trwałych <code>/data</code> control i bridge nie znalazł plaintextu wiadomości z</li>
+</ul>
+<p>hasłem.</p>
+<h3>Aktualny stan</h3>
+<p>Kod, lokalny URL i realna wysyłka SMTP działają. Rekord dostępu ma <code>status=delivered</code>; SMTP zaakceptował wiadomość dla <code>tom@prototypowanie.pl</code>. Pozostaje potwierdzenie odbioru i pierwsze logowanie Foundera. Jednorazowe hasło jest ważne 15 minut i po poprawnym użyciu zostaje wymienione na sesję <code>HttpOnly</code>.</p>
+<p>Publiczne wystawienie <code>founder.subactor.com</code> nadal wymaga DNS, HTTPS, reverse proxy oraz IdP/MFA/rate limitu. Jednorazowe hasło i sesja aplikacyjna nie są zamiennikiem tych warstw infrastruktury.</p>
+<h3>Jednorazowy intake credentialu SMTP</h3>
+<p>Browser Agent został rozszerzony o provider <code>smtp</code>. Formularz przyjmuje tylko hasło; adres <code>info@prototypowanie.pl</code>, wpis vault <code>smtp-system-email</code> oraz host i origin pochodzą z konfiguracji serwera, a nie z danych podanych przez przeglądarkę. Publiczny MX domeny został odczytany jako <code>10 mail.prototypowanie.pl.</code>. Ze względu na SAN certyfikatu aktywny transport używa certyfikowanej nazwy <code>prototypowanie.pl</code>; obie nazwy wskazują <code>217.160.250.222</code>.</p>
+<p>Zabezpieczenia intake:</p>
+<ul>
+<li>token występuje w <code>#fragment</code>, więc nie jest wysyłany przez HTTP;</li>
+<li>strona natychmiast usuwa fragment przez <code>history.replaceState</code>;</li>
+<li><code>Cache-Control: no-store</code>, <code>Referrer-Policy: no-referrer</code>, CSP</li>
+</ul>
+<p><code>default-src 'none'</code> i <code>frame-ancestors 'none'</code>, <code>X-Frame-Options: DENY</code>;</p>
+<ul>
+<li>link jest jednorazowy, wygasa i ma limit prób;</li>
+<li>hasło jest szyfrowane w vault i wiązane z dokładnym originem;</li>
+<li>origin z hostem innym niż host SMTP jest odrzucany;</li>
+<li>do Planfile i audytu trafiają tylko request ID i fingerprint tokenu.</li>
+</ul>
+<p>Testy Browser Agenta: 15/15. Live request <code>intake_mrt2eaby_b0fcbd17cd</code> utworzono dla <code>PLF-569</code>; został zużyty raz i ma stan <code>completed</code>. Pełny URL z tokenem nie jest zapisany w raporcie ani tickecie. Końcowy execution bridge to <code>exec_1784543009273_2c60ea185b15c</code>: <code>succeeded</code>, <code>smtp</code>, <code>external</code>. Mailpit pozostał bez zmian, a skan <code>/data</code> control/bridge nie znalazł treści zawierającej hasło.</p>
+<h2>14. Jednoklikowy link dostępu Foundera</h2>
+<p>Wariant z kopiowaniem hasła opisany w sekcji 13 został zastąpiony jednorazowym linkiem. Zmianę wykonano pod utworzonym wcześniej ticketem <code>PLF-570</code>, zawierającym manifest <code>subactor.process-manifest.v1</code> z AQL, EQL, OQL i URI. Jawne operacje to wysyłka <code>email.send</code>, aktywacja <code>founder.access.magic_login</code> i unieważnienie poprzedniego dostępu.</p>
+<p>Hasło ujawnione w rozmowie było już zużyte, ale powiązana z nim sesja nadal istniała. Rekord oznaczono <code>revoked_compromised</code>, a sesję unieważniono przed utworzeniem nowego dostępu. W logach i raporcie nie utrwalono wartości hasła.</p>
+<p>Nowy przepływ:</p>
+<ol>
+<li><code>POST /api/founder/access/magic-bootstrap</code> przyjmuje identyfikator</li>
+</ol>
+<p>istniejącego ticketa i przed skutkiem weryfikuje <code>plan_id</code>, <code>step_id</code> oraz operację OQL;</p>
+<ol>
+<li>control generuje losowy token, ale zapisuje tylko jego hash;</li>
+<li>e-mail zawiera jeden adres <code>FOUNDER_PORTAL_URL#access=...</code>, wysyłany z</li>
+</ol>
+<p><code>require_external=true</code>;</p>
+<ol>
+<li><code>GET /founder</code> zwraca bezpośrednio panel (HTTP 200), dzięki czemu fragment</li>
+</ol>
+<p>nie przechodzi przez przekierowanie;</p>
+<ol>
+<li>JavaScript odczytuje sekret z fragmentu i natychmiast wykonuje</li>
+</ol>
+<p><code>history.replaceState</code>, zanim wyśle go w ciele żądania do <code>POST /api/founder/access/magic-login</code>;</p>
+<ol>
+<li>endpoint ponownie waliduje ticket i krok <code>activate-magic</code>, atomowo zużywa</li>
+</ol>
+<p>link, tworzy sesję <code>HttpOnly; SameSite=Strict</code> i dopiero po poprawnym zapisaniu rezultatu kończy ticket;</p>
+<ol>
+<li>błąd zapisu dowodu cofa dostęp: sesja jest unieważniana, a rekord przechodzi</li>
+</ol>
+<p>do <code>activation_failed</code>.</p>
+<p>Po wysyłce ticket automatycznie przechodzi do <code>execution.state=waiting_input</code>. Jego wynik zawiera status dostarczenia, identyfikator dostępu, czas i nazwę transportu, bez tokenu. Kliknięcie linku uzupełnia wynik aktywacji i kończy ticket. Jest to rozdzielenie dwóch skutków: dostarczenia oraz udzielenia sesji.</p>
+<h3>Konfiguracja i testy</h3>
+<p>Dodano <code>FOUNDER_ACCESS_MAGIC_LINK_TTL_MINUTES</code> do <code>.env.example</code>, aktywnego <code>.env</code>, walidatora oraz kanonicznego <code>config/env-contract.json</code>. Oba pliki env mają po 487 kluczy; liczba kluczy brakujących w dowolną stronę wynosi zero.</p>
+<p>Dowody testowe i live:</p>
+<ul>
+<li>testy Founder access: 7/7;</li>
+<li>pełny gate control: 165/165;</li>
+<li>kontrakt Platformy: 3/3, <code>validate-env</code> poprawny;</li>
+<li>live <code>GET /founder</code>: HTTP 200;</li>
+<li>bridge execution <code>exec_1784543920491_aae4ff75fa9e6</code>: <code>succeeded</code>, <code>smtp</code>,</li>
+</ul>
+<p><code>external</code>;</p>
+<ul>
+<li>lokalny Mailpit nie otrzymał wiadomości;</li>
+<li>skan <code>/data</code> control i bridge: zero plików z jawnym tokenem magic linku;</li>
+<li><code>PLF-570</code>: <code>open</code>, <code>execution.state=waiting_input</code>,</li>
+</ul>
+<p><code>delivery.status=succeeded</code>, <code>transport=external</code>.</p>
+<p>Link został wysłany na kanoniczny adres Foundera. Ticket pozostaje otwarty do kliknięcia; to oczekiwany stan fail-closed, ponieważ samo dostarczenie e-maila nie jest dowodem przyznania dostępu.</p>
+<h2>15. Ponowna wysyłka linku na żądanie Foundera</h2>
+<p>Na kolejne jawne żądanie utworzono przed skutkiem ticket <code>PLF-578</code> z manifestem AQL/EQL/OQL/URI. Pierwsze dwie próby przygotowania payloadu ticketa zostały odrzucone przez walidację lub lokalny parser przed utworzeniem dowodu; nie uruchomiły wysyłki. Poprawny ticket otrzymał stan <code>running</code>, a dopiero później wykonano <code>deliver-magic / email.send</code>.</p>
+<p>Wynik live:</p>
+<ul>
+<li>bridge execution: <code>exec_1784559464309_c5d118b52931f</code>;</li>
+<li>status: <code>succeeded</code>, tryb <code>smtp</code>, transport <code>external</code>;</li>
+<li><code>PLF-578</code>: <code>open</code>, <code>execution.state=waiting_input</code>,</li>
+</ul>
+<p><code>delivery.status=succeeded</code>;</p>
+<ul>
+<li>liczba aktywnych rekordów <code>delivered</code>: dokładnie 1;</li>
+<li>poprzedni link: <code>superseded</code>;</li>
+<li>nowy link: <code>delivered</code>;</li>
+<li>lokalny Mailpit bez nowej wiadomości;</li>
+<li>skan <code>/data</code> control i bridge: zero plików z jawnym tokenem.</li>
+</ul>
+<p>Nowy link został wysłany wyłącznie na kanoniczny adres Foundera. Po kliknięciu endpoint ma zużyć rekord, utworzyć sesję HttpOnly i zakończyć <code>PLF-578</code> wraz z wynikiem aktywacji.</p>
+<h2>16. Kopiowanie sekcji i formularzy panelu</h2>
+<p>Kontekst formularza przesłany przez Foundera potwierdził działającą sesję <code>Founder web session</code>. <code>PLF-578</code> po kliknięciu linku ma stan <code>done</code>, wynik <code>succeeded</code> i <code>access_method=magic_link</code>, więc pełna pętla dostępu została potwierdzona również live.</p>
+<p>Rozbudowę kopiowania wykonano pod utworzonym wcześniej ticketem <code>PLF-579</code> z manifestem AQL/EQL/OQL/URI. Panel udostępnia teraz:</p>
+<ul>
+<li><code>Kopiuj sekcję jako JSON</code> dla każdej głównej sekcji;</li>
+<li>dotychczasowe <code>Kopiuj formularz jako JSON</code> dla każdego formularza;</li>
+<li><code>Kopiuj wszystkie sekcje</code>;</li>
+<li><code>Kopiuj wszystkie formularze</code>;</li>
+<li><code>Kopiuj cały panel</code>, zawierający oba kompletne zbiory.</li>
+</ul>
+<p>Eksport zawiera kontekst trasy, środowiska i jawnej tożsamości, pola formularza, bezpieczny tekst sekcji, tabele i jawnie oznaczone outputy. Pola hasła, credentiale, tokeny oraz rozpoznane wartości sekretne są zastępowane przez <code>[REDACTED]</code>. Elementy formularzy są eksportowane strukturalnie, a wartości kontrolek nie są kopiowane jako surowy tekst sekcji.</p>
+<p>Dowody:</p>
+<ul>
+<li>panel contract: 25/25;</li>
+<li>control gate: 165/165;</li>
+<li>live Playwright na <code>/?tab=dashboard</code>: HTTP 200;</li>
+<li>14 sekcji i 14 odpowiadających kontrolek kopiowania;</li>
+<li>14 formularzy z indywidualnym eksportem;</li>
+<li>poprawny JSON dla pojedynczego formularza, pojedynczej sekcji, wszystkich</li>
+</ul>
+<p>sekcji, wszystkich formularzy i całego panelu;</p>
+<ul>
+<li>sztuczny sekret nie wystąpił w żadnym z pięciu odczytów schowka;</li>
+<li><code>PLF-579</code>: <code>done</code>, <code>result.status=succeeded</code>, siedem odwołań do artefaktów i</li>
+</ul>
+<p>logów testowych.</p>
+<h2>Walidacja live: pełna pętla polecenie-e-mail → plan → approval → wykonanie (2026-07-20)</h2>
+<p>Zweryfikowano na działającym stacku komendą <code>subactor</code>, że autoryzowane polecenie Foundera przechodzi cały obieg autonomiczny z człowiekiem-w-pętli:</p>
+<pre><code>tom@prototypowanie.pl → agent@prototypowanie.pl (&quot;opublikuj dokumentację na docs-stage.subactor.com&quot;)
+  → autoryzacja (kontakt + kontrakt) → ticket PLF-573 (queue project-operator-bot, ready)
+  → email-ticket-worker: intent (pack docs-stage-httpdocs-publish, zamknięty katalog)
+      → preflight kontraktu project-operator-bot: POKRYCIE OK
+      → createPlan → plan_mrt8jayl_11e9cd3fb6 (proposed, model docs-httpdocs-sync.pl.aql)
+      → needs_human: approval_required (bo AUTONOMY_MUTATIONS_ENABLED=0), PLF-573 → waiting_input
+  → Founder: POST /api/plans/…/approve → approved
+  → Founder: POST /api/plans/…/execute → executed (krok task.create, mode planfile-rest,
+      utworzył ticket wykonawczy docs-httpdocs-sync)
+Ślad audytu: email_ticket.batch → plan.proposed → plan.approved → process.ticket.created → plan.executed</code></pre>
+<p>Zrealizowane w tej iteracji (kod + testy jednostkowe zielone, walidacja live):</p>
+<ol>
+<li><strong>Uczciwy readiness</strong> — dashboard rozróżnia osiągalność od gotowości; inbound-email</li>
+</ol>
+<p><code>waiting_credentials</code> raportowane jako <code>degraded</code>, <code>interpretation=operational_with_degraded_services</code>.</p>
+<ol>
+<li><strong>Resolver e-mail → aktor</strong> (fail-closed) — <code>POST /api/delegation/resolve-email</code>.</li>
+<li><strong>email-ticket-worker</strong> — zamknięty katalog intentów, preflight, plan/<code>needs_human</code>, korelowana</li>
+</ol>
+<p>odpowiedź (label <code>emailsrc:</code>), threading SMTP, zawsze reply, redakcja sekretów; endpoint <code>POST /api/email-tickets/execute</code>.</p>
+<ol>
+<li><strong>Idempotentny <code>init-secrets</code></strong> wpięty w <code>make init</code>.</li>
+<li><strong>Ingress Foundera</strong> — nakładka <code>docker-compose.ingress.yml</code> + Caddy (HTTPS + auth); <code>caddy validate</code> OK.</li>
+<li><strong>TLS altname</strong> — konfigurowalny <code>servername</code> w obu ścieżkach SMTP bridge (<code>SMTP_EXTERNAL_SERVERNAME</code></li>
+</ol>
+<p>/ pole <code>servername</code> profilu), bez wyłączania weryfikacji.</p>
+<ol>
+<li><strong>Kontrakt <code>project-operator-bot</code></strong> rozszerzony o <code>plesk.transport.sftp</code>, <code>plesk.tls_san_check</code>,</li>
+</ol>
+<p><code>plesk.ssl_ensure</code> — polecenie publikacji trafia do planu zamiast eskalacji.</p>
+<p>Nie wykonano realnej mutacji Plesk ani nie włączono <code>AUTONOMY_MUTATIONS_ENABLED</code> — ostatnia bariera pozostaje świadomie zamknięta. Kanał <code>System → Founder</code> wysyła przez realny zewnętrzny SMTP (<code>transport=external</code>); dostarczenie do skrzynki nie jest weryfikowalne z tego środowiska.</p>
+<h2>17. Audyt panelu Planfile <code>127.0.0.1:8765</code></h2>
+<p>Pełny audyt HTTP, UI, WebSocket i lifecycle wykonano pod ticketem <code>PLF-580</code>. Usunięto mutację przy samym otwarciu szczegółów, cichy limit 80 rekordów, niespójność <code>/ready</code>, niedziałające <code>/move</code>, niekanoniczne <code>/sprints</code>, błędny Runtime Context, otwarty CORS i pozostałe problemy opisane w osobnym raporcie: <a href="planfile-http-audit-2026-07-20.html">planfile-http-audit-2026-07-20.md</a>.</p>
+<p>Wynik końcowy: macierz produkcyjna <code>44/44</code>, browser bez błędów, pełne testy Planfile <code>257 passed, 6 skipped</code>, kontener po przebudowie zdrowy.</p>
+<h2>18. Stan operacyjny, GitHub i kolejne plany (2026-07-20, aktualizacja)</h2>
+<h3>Scalenie na GitHub</h3>
+<p>Cała funkcjonalność „autonomia + komunikacja z Founderem&quot; jest na <code>main</code> we wszystkich repozytoriach (<code>core</code>, <code>agents</code>, <code>connectors</code>, <code>contracts</code>, <code>testkit</code>, <code>platform</code>) — <strong>jedna gałąź <code>main</code>, brak gałęzi feature ani przestarzałych</strong>. Wiring <code>server.mjs</code>/<code>dispatch.mjs</code>/<code>delegation.mjs</code> oraz bridge (threading + <code>servername</code>) zrekonstruowano na czystej bazie i scalono. Świadomie poza <code>main</code> pozostaje jedynie <code>scripts/init-secrets.mjs</code> (splątany lokalnie z równoległym <code>urirun-node-token</code>; wejdzie razem z tamtym commitem).</p>
+<h3>Kolejka Foundera — sprzątnięta</h3>
+<p>Kolejka Foundera została odszumiona: zamknięto demo onboarding i zdeduplikowano powtórzone polecenia (każda distinct operacja → najnowszy ticket). Efekt:</p>
+<ul>
+<li>aktywne tickety Foundera: <strong>135 → 31 unikalnych operacji</strong>;</li>
+<li><code>human_attention</code>: <strong>155 → 26</strong>;</li>
+<li>dashboard uwzględnia teraz, że <code>done/canceled/blocked</code> nie zawyżają uwagi</li>
+</ul>
+<p>człowieka (poprawka w <code>system-dashboard.mjs</code>).</p>
+<p>Pozostałe 31 to realne pozycje: ~20 poleceń publikacji <code>[founder]</code> do <code>*.subactor.com</code>, 5 publikacji systemowych, 3 realne konfiguracje (aktywacja SMTP <code>info@</code>, dostęp admina Plesk, skrzynka <code>agent@</code>) oraz warianty onboardingu.</p>
+<h3>Kryterium „aktualne&quot; — spełnione</h3>
+<p>Nie ma już starych/osieroconych ticketów: wszystkie ≤ 7 dni, kolejka jest zdeduplikowana i odzwierciedla realne intencje, a nie szum testowy.</p>
+<h3>Kolejne plany (proponowane, w kolejności)</h3>
+<ol>
+<li><strong>Kontrolowany pilot wykonania na mock Plesk</strong> — włączyć <code>AUTONOMY_MUTATIONS_ENABLED</code></li>
+</ol>
+<p><em>tylko</em> dla <code>PLESK_MODE=mock</code>, wykonać realny <code>plesk.site.sync</code> przeciw mockowi z podpisanym apply grantem; udowadnia pełne <code>plan → execute</code> bez ruszania prawdziwej infrastruktury.</p>
+<ol>
+<li><strong>Realny outbound e-mail do skrzynki</strong> — ustawić <code>SMTP_EXTERNAL_SERVERNAME</code></li>
+</ol>
+<p>na nazwę z certyfikatu (<code>webmail.prototypowanie.pl</code>), wysłać jedno powiadomienie i <strong>potwierdzić odbiór w realnej skrzynce</strong> (dziś potwierdzamy tylko transakcję SMTP).</p>
+<ol>
+<li><strong>Realny inbound IMAP</strong> — secret intake credentiali <code>agent@prototypowanie.pl</code></li>
+</ol>
+<p>do vaulta, jedno kontrolowane polecenie z prawdziwej domeny → ticket → odpowiedź.</p>
+<ol>
+<li><strong>Publiczny ingress Foundera</strong> — wdrożyć nakładkę <code>docker-compose.ingress.yml</code></li>
+</ol>
+<p>z realną domeną, certyfikatem ACME i IdP/MFA (dziś Basic auth + internal CA).</p>
+<ol>
+<li><strong><code>init-secrets</code> na <code>main</code></strong> — scommitować połączoną wersję (moja logika +</li>
+</ol>
+<p><code>urirun-node-token</code>) razem z pracą urirun, uzupełnić <code>.env.example</code>/<code>env-contract.json</code>.</p>
+<ol>
+<li><strong>Obsłużyć 31 realnych ticketów Foundera</strong> — zatwierdzić/wykonać polecenia</li>
+</ol>
+<p>publikacji i domknąć 3 zadania konfiguracji tożsamości poczty.</p>
+<p>Fail-closed pozostaje domyślną postawą na każdym etapie; kroki 1–3 wymagają świadomej decyzji o włączeniu mutacji i realnych credentiali.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLF-767 — kanoniczna skrzynka `agent@subactor.com` — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>PLF-767 — kanoniczna skrzynka <code>agent@subactor.com</code></h1>
+<p>Data wykonania: 2026-07-21. Decydent: <code>authority:founder</code>.</p>
+<h2>Korekta</h2>
+<p>Kanoniczną skrzynką operacyjną Subactora jest <code>agent@subactor.com</code>. Poprzednia konfiguracja runtime'u wskazująca <code>hello@subactor.com</code> została zastąpiona. Żadnej skrzynki nie usunięto.</p>
+<p>Odczyt connectora i niezależny odczyt surowego Plesk REST API potwierdziły, że przed korektą istniały trzy konta. Odczyt po operacji ponownie potwierdził:</p>
+<ul>
+<li><code>agent@subactor.com</code>: <code>exists=true</code>;</li>
+<li><code>hello@subactor.com</code>: <code>exists=true</code>;</li>
+<li><code>agent@prototypowanie.pl</code>: <code>exists=true</code>.</li>
+</ul>
+<h2>Wykonanie AQL → OQL → URI → EQL</h2>
+<ol>
+<li>AQL dopuścił inspekcję, rotację credentiala kanonicznej skrzynki, zapis do</li>
+</ol>
+<p>vault i zmianę konfiguracji runtime'u. Zabronił usuwania skrzynek i zwracania sekretów.</p>
+<ol>
+<li>OQL zaplanował <code>mailbox.ensure</code> wyłącznie dla <code>agent@subactor.com</code>, zmianę</li>
+</ol>
+<p>konfiguracji oraz kontrolowany test <code>email.send</code>.</p>
+<ol>
+<li>Dry-run connectora zwrócił akcję <code>rotate</code> i plan</li>
+</ol>
+<p><code>dc6e6fff465e285948a4a882526c1db1aef56e4215759b983c3197ab6c87cc24</code>.</p>
+<ol>
+<li>URI <code>plesk://host/mailbox/command/ensure</code> wykonało dokładnie ten plan po</li>
+</ol>
+<p>sprawdzeniu jednorazowego grantu klasy <code>governance</code>.</p>
+<ol>
+<li>Wygenerowane hasło trafiło bezpośrednio do <code>agent-mailbox-runtime</code> dla</li>
+</ol>
+<p><code>imap://mail.prototypowanie.pl</code> oraz <code>smtp-system-email</code> dla <code>https://prototypowanie.pl</code>; nie pojawiło się w wyniku, pliku <code>.env</code>, tickecie ani dokumentacji.</p>
+<ol>
+<li>Bramki <code>AUTONOMY_MUTATIONS_ENABLED</code> i <code>PLESK_MAILBOX_APPLY</code> zostały po</li>
+</ol>
+<p>operacji ponownie zamknięte.</p>
+<h2>Dowody end-to-end</h2>
+<ul>
+<li>Plesk: <code>SUCCESS: Update of mailname 'agent@subactor.com' complete</code>;</li>
+<li>runtime IMAP: <code>INBOUND_AGENT_EMAIL=agent@subactor.com</code>, stan <code>ready</code>,</li>
+</ul>
+<p><code>last_poll_error=null</code>;</p>
+<ul>
+<li>runtime SMTP: użytkownik i nadawca <code>agent@subactor.com</code>;</li>
+<li>SMTP: kontrolowana wiadomość <code>[PLF-767 E2E 20260721T1513Z]</code> została wysłana</li>
+</ul>
+<p>transportem <code>external</code>;</p>
+<ul>
+<li>IMAP: ta sama wiadomość została odebrana i zarejestrowana jako syntetyczny</li>
+</ul>
+<p>ticket PLF-771;</p>
+<ul>
+<li>ochrona treści: PLF-771 miał <code>command_authorized=false</code>, kolejkę</li>
+</ul>
+<p><code>customer-support</code> i stan <code>waiting_input</code>; po potwierdzeniu testu został zamknięty bez wykonania treści;</p>
+<ul>
+<li>testy parsera i polityki inbound: 13/13 zaliczone;</li>
+<li><code>docker compose config --quiet</code>: konfiguracja poprawna.</li>
+</ul>
+<p>Pliki konfiguracyjne nadal rejestrują <code>hello@subactor.com</code> i <code>agent@prototypowanie.pl</code> jako istniejące, niekanoniczne adresy kompatybilności. Runtime nie podstawia ich automatycznie zamiast <code>agent@subactor.com</code>.</p>
+</main>
+</body>
+</html>

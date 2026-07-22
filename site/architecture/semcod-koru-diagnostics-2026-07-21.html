@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diagnostyka Subactor przez Koru i semcod — 2026-07-21 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Diagnostyka Subactor przez Koru i semcod — 2026-07-21</h1>
+<h2>Wynik</h2>
+<p>Diagnostyka została wykonana z katalogu <code>/home/tom/github/subactor</code> przy użyciu <code>code2llm</code>, <code>redup 0.4.35</code> i <code>koru 0.1.400</code>. Koru pracował w trybie dry-run; podczas audytu nie utworzono ticketów i nie wykonano refaktoryzacji.</p>
+<p><code>project/analysis.toon.yaml</code> obejmuje 716 plików i wskazuje:</p>
+<ul>
+<li>35 god modules;</li>
+<li>324 funkcje z CC &gt;= 15;</li>
+<li>maksymalne CC 107;</li>
+<li>pięć głównych hotspotów modułowych w <code>runtime</code>, <code>orchestrator</code> i <code>testkit</code>;</li>
+<li>dwadzieścia funkcji wybranych przez Koru do pierwszej kolejki redukcji CC.</li>
+</ul>
+<p>Skan Koru zwrócił 28 sugestii: pięć podziałów modułów, dwadzieścia redukcji złożoności, jedno zbiorcze zadanie refaktoryzacyjne oraz brak konfiguracji bramek <code>regix</code> i <code>testql</code> na poziomie płaskiego katalogu projektu.</p>
+<h2>Korekta raportu duplikacji</h2>
+<p>Pierwotny <code>project/duplication.toon.yaml</code> raportował zero grup, ale przeskanował tylko 10 plików i 1566 linii. Przyczyną był domyślny filtr <code>redup</code>, który uwzględniał wyłącznie <code>.py</code>, podczas gdy Subactor jest głównie projektem JavaScript/TypeScript.</p>
+<p>Pełny skan wielojęzykowy objął 440 plików i 59 724 linie. Znalazł 96 grup oraz 5747 potencjalnie powtarzających się linii, ale ten wynik wymaga klasyfikacji:</p>
+<ul>
+<li>66 grup pochodzi z wersjonowanych, wygenerowanych bundle'i <code>eql/cdn</code>;</li>
+<li>13 grup to nakładające się zakresy tej samej funkcji wykryte ponownie przez</li>
+</ul>
+<p>ekstraktor;</p>
+<ul>
+<li>17 grup pozostaje do przeglądu jako potencjalnie rzeczywista duplikacja.</li>
+</ul>
+<p>Bundle'i CDN są artefaktami dystrybucyjnymi. Nie należy ich ręcznie refaktoryzować; trzeba utrzymywać jedno źródło i odtwarzać bundle przez build. Nie należy również automatycznie stosować sugestii <code>redup</code>, które proponują pliki <code>.py</code> dla kodu <code>.mjs</code> lub <code>.js</code>.</p>
+<h2>Najbardziej wartościowe duplikaty do usunięcia</h2>
+<ol>
+<li><code>core/services/control/src/docs-sync-intent.mjs</code> i</li>
+</ol>
+<p><code>www-sync-intent.mjs</code>: dokładnie powtórzone <code>loadPack</code> oraz <code>matchPhrase</code>. Kandydat na wspólny moduł obsługi intent packów.</p>
+<ol>
+<li><code>platform/scripts/configure-inbound-email-vault.mjs</code> i</li>
+</ol>
+<p><code>configure-plesk-admin-vault.mjs</code>: powtórzona obsługa ukrytego hasła i wejścia terminalowego. Kandydat na wspólny helper CLI bez zmiany granic sekretów.</p>
+<ol>
+<li><code>connectors/services/bridge/src/plesk-docroot-observe.mjs</code> i</li>
+</ol>
+<p><code>plesk-subscription-probe.mjs</code>: dokładnie powtórzone <code>xmlEscape</code>.</p>
+<ol>
+<li><code>agents/services/browser-agent/src/server.mjs</code>: podobne strony oraz handlery</li>
+</ol>
+<p>formularzy Plesk, mailbox i SMTP. Kandydat na fabrykę routingu formularzy, z zachowaniem osobnych schematów walidacji.</p>
+<ol>
+<li><code>core/services/control/src/delegation-coverage.mjs</code> i</li>
+</ol>
+<p><code>platform/packages/capability-preflight/src/preflight.mjs</code>: podobne dopasowanie URI/allow pattern. Wymaga najpierw decyzji o właścicielu kontraktu, ponieważ kod leży po dwóch stronach granicy repozytoriów.</p>
+<h2>Kolejność refaktoryzacji</h2>
+<h3>Faza 0 — jakość sygnału</h3>
+<ul>
+<li>Używać rozszerzeń <code>.py,.js,.mjs,.cjs,.ts,.tsx,.jsx,.php,.sh</code>.</li>
+<li>Szybki skan ograniczać do <code>core</code>; pełny skan uruchamiać jawnie.</li>
+<li>Odfiltrować <code>eql/cdn</code>, wygenerowane SDK/bundle i nakładające się zakresy</li>
+</ul>
+<p>przed utworzeniem ticketów.</p>
+<ul>
+<li>Nie stosować automatycznych sugestii ścieżek z <code>redup</code> bez przeglądu.</li>
+</ul>
+<h3>Faza 1 — bezpieczne ekstrakcje</h3>
+<ul>
+<li>Wspólny helper intent packów dla docs/www.</li>
+<li>Wspólny helper terminalowego pobierania sekretu w skryptach platformy.</li>
+<li>Wspólny <code>xmlEscape</code> w konektorze bridge.</li>
+<li>Każda ekstrakcja z testem regresyjnym i bez zmiany kontraktu URI.</li>
+</ul>
+<h3>Faza 2 — hotspoty <code>core</code></h3>
+<ul>
+<li><code>process-pack-registry.mjs::validateGraph</code> — CC 88.</li>
+<li><code>routes/founder-access.mjs::handleFounderAccessRoutes</code> — CC 107.</li>
+<li><code>interactive-form.mjs</code> — trzy funkcje CC 27–33.</li>
+<li><code>autonomy-remediation-planner.mjs::validateLlmRemediationProposal</code> — CC 39.</li>
+<li><code>project-remediation.mjs::ensureProjectRemediationTickets</code> — CC 38.</li>
+</ul>
+<p><code>core/services/control/public/app.js</code> ma 2957 linii i bardzo szeroki fan-in. Jego podział powinien następować po wydzieleniu stabilnych helperów i testów, nie jako jednorazowe przeniesienie pliku.</p>
+<h3>Faza 3 — runtime i orchestrator</h3>
+<ul>
+<li><code>runtime/src/oql-runtime.mjs</code>;</li>
+<li><code>runtime/src/eql-pressure-runtime.mjs</code>;</li>
+<li><code>runtime/src/testql-runtime.mjs</code>;</li>
+<li><code>orchestrator/src/pipeline.mjs</code>.</li>
+</ul>
+<p>Najpierw należy rozdzielić parsowanie, walidację i wykonanie, pozostawiając dotychczasowe entry pointy jako cienkie fasady kompatybilności.</p>
+<h2>Powtarzalne uruchomienie</h2>
+<p>Szybka diagnostyka, domyślnie z godzinnym cache raportu duplikacji:</p>
+<pre><code class="language-bash">bash platform/scripts/run-semcod-diagnostics.sh .</code></pre>
+<p>Pełny audyt całej płaskiej przestrzeni:</p>
+<pre><code class="language-bash">REDUP_MODE=full REDUP_MAX_AGE_SECONDS=0 \
+  bash platform/scripts/run-semcod-diagnostics.sh .</code></pre>
+<p>Wyłączenie kosztownego skanu duplikacji i samo odświeżenie Koru:</p>
+<pre><code class="language-bash">REDUP_MODE=off bash platform/scripts/run-semcod-diagnostics.sh .</code></pre>
+<p>Koru pozostaje dry-run. Dopiero po przeglądzie wyniku można osobno uruchomić <code>koru scan --apply --semcod-artifacts</code>, aby deduplikować i utworzyć zaakceptowane tickety w Planfile.</p>
+</main>
+</body>
+</html>

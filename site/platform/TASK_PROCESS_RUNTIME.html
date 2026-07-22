@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Integracja listy zadań (planfile) i runtime procesów (urirun) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Integracja listy zadań (planfile) i runtime procesów (urirun)</h1>
+<p>Relcom może opcjonalnie oprzeć <strong>listę zadań</strong> o standard ticketów <a href="https://github.com/semcod/planfile"><code>planfile</code></a>, a **uruchamianie i monitorowanie procesów** o runtime URI <a href="https://github.com/if-uri/urirun"><code>urirun</code></a>, zamiast traktować takie operacje jako czyste zdarzenia audytowe.</p>
+<p>Integracja jest <em>best-effort</em> i wyłączona domyślnie. Bez zainstalowanych narzędzi Python cały system działa jak dotychczas — operacje degradują się przezroczyście do wyniku <code>mode: &quot;lab-audit&quot;</code>. Nie wprowadza to twardej zależności.</p>
+<h2>Model</h2>
+<table>
+<thead><tr><th>Operacja planu (OQL)</th><th>Backend gdy <code>TASK_RUNTIME_ENABLED=true</code></th><th>Fallback</th></tr></thead>
+<tbody>
+<tr><td><code>task.create</code>, <code>manual.task</code></td><td><code>planfile ticket create</code> → ticket PLF-NNN</td><td><code>lab-audit</code></td></tr>
+<tr><td><code>process.run</code>, <code>workflow.request</code></td><td><code>urirun run &lt;uri&gt; &lt;registry&gt; --execute</code></td><td><code>lab-audit</code></td></tr>
+</tbody></table>
+<p>Most żyje w <code>@subactor/runtime/task-runtime</code> (klasa <code>TaskRuntime</code>) i jest instancjonowany w <code>services/bridge</code>. Zwraca ustrukturyzowane koperty i <strong>nigdy nie rzuca</strong> przy braku binarki lub martwym node — zwraca <code>{ok:false, available:false, source:&quot;lab-audit-fallback&quot;, reason:...}</code>, a bridge kontynuuje plan z wynikiem lab-audit. Realne błędy CLI (np. zła nazwa ticketu przy dostępnym <code>planfile</code>) są zgłaszane jako błąd kroku, nie ukrywane.</p>
+<p>Uwaga implementacyjna: CLI <code>planfile</code> jest zakresowane katalogiem roboczym (<code>.planfile/</code> w cwd) i nie ma flagi <code>--project</code>; projekt wybiera się przez <code>cwd</code> procesu. <code>ticket create</code> nie wspiera <code>--format json</code>, więc identyfikator ticketu jest parsowany z linii <code>✓ Created PLF-NNN: ...</code>, a pełne dane odczytuje <code>ticket list --format json</code>.</p>
+<h2>Konfiguracja</h2>
+<p>Zmienne (zadeklarowane w <code>config/env-contract.json</code>, propagowane do <code>.env</code>):</p>
+<pre><code class="language-bash">TASK_RUNTIME_ENABLED=false      # główny przełącznik
+PLANFILE_BIN=planfile           # binarka planfile w PATH
+PLANFILE_PROJECT_DIR=           # katalog projektu (.planfile/); puste = cwd bridge
+URIRUN_BIN=urirun               # binarka urirun w PATH
+URIRUN_REGISTRY_PATH=           # skompilowany rejestr URI dla `urirun run`
+URIRUN_ALLOW=proc://**          # polityka allow deny-by-default dla wykonania</code></pre>
+<h2>Weryfikacja</h2>
+<p>Test jednostkowy: <code>npm run test</code> uruchamia <code>components/testkit/tests/task-runtime.test.mjs</code> (fallback przy wyłączeniu, budowa komend, degradacja przy braku binarki, parsowanie JSON/loose i ID ticketu).</p>
+<p>Sprawdzenie na żywo wobec prawdziwego CLI planfile:</p>
+<pre><code class="language-bash">node --input-type=module -e '
+import {TaskRuntime} from &quot;@subactor/runtime/task-runtime&quot;;
+const rt = new TaskRuntime({enabled:true, planfileProject:&quot;/tmp/pf&quot;});
+console.log(await rt.createTicket({name:&quot;Relcom onboarding&quot;, priority:&quot;high&quot;, labels:[&quot;subactor&quot;]}));
+console.log(await rt.listTickets());
+'
+# → CREATE ok=true source=planfile id=PLF-001
+# → LIST   ok=true tickets=[[&quot;PLF-001&quot;,&quot;Relcom onboarding&quot;,&quot;high&quot;]]</code></pre>
+<h2>Granica</h2>
+<p>To integracja warstwy developerskiej/laboratoryjnej. Produkcyjnie należy uruchamiać <code>urirun</code> jako node HTTP (<code>urirun node serve --execute</code>) i wołać <code>POST /run</code> oraz <code>GET /events</code> zamiast CLI, a <code>planfile</code> wystawić przez <code>planfile serve</code> (REST), z kolejką, tenancy i audytem zgodnie z <code>docs/PRODUCTION_READINESS.md</code>.</p>
+</main>
+</body>
+</html>

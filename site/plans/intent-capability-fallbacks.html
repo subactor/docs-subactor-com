@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Design note: intent packs + recipe policy — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Design note: intent packs + recipe policy</h1>
+<p><strong>Status:</strong> skrót / pointer. <strong>Dokument kanoniczny:</strong> <a href="../architecture/intent-orchestration-and-fallbacks.html"><code>../architecture/intent-orchestration-and-fallbacks.md</code></a></p>
+<p>Ten plik pozostaje jako krótka nota planowa. Pełna analiza stanu stacku, gap analysis, model generyczny (intent packs, recipe policy, connector capabilities, rola LLM), szkice schematów, migracja, non-goals i acceptance criteria są w dokumencie architektury powyżej.</p>
+<h2>Werdykt (1 akapit)</h2>
+<p>Ease-of-intent blokuje <strong>N-krotne ręczne wiring</strong> oraz <strong>liniowy fail-fast</strong> w <code>runTask</code>, nie brak OpenRouter. Fallback transportu (np. SFTP→FTP przy <code>transport=auto</code>) należy do konektora; <code>optional</code> / <code>on_fail</code> / <code>try_in_order</code> — do recipe + orchestratora; named intent + situation — do intent pack SSOT. LLM wybiera pack id i sloty, nie URI DAG.</p>
+<h2>Uzupełnienia</h2>
+<ul>
+<li>Rekomendacja autonomii: <a href="../architecture/autonomy-recommended-solution.html"><code>../architecture/autonomy-recommended-solution.md</code></a></li>
+<li>Roadmapa faz 0–8: <a href="autonomy-implementation-roadmap.html"><code>autonomy-implementation-roadmap.md</code></a></li>
+<li>ADR: <a href="../architecture/adr/README.html"><code>../architecture/adr/README.md</code></a></li>
+<li>Status ops: <a href="../architecture/autonomy-ops-status-and-open-questions.html"><code>../architecture/autonomy-ops-status-and-open-questions.md</code></a></li>
+<li>Runbook CLI: <a href="../autonomy-cli-runbook.html"><code>../autonomy-cli-runbook.md</code></a></li>
+<li>Przykład publish docs: <a href="docs-subactor-com-publish.html"><code>docs-subactor-com-publish.md</code></a></li>
+</ul>
+</main>
+</body>
+</html>

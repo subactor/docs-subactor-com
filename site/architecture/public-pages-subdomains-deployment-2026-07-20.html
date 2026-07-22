@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raport subdomen i wdrożeń stron Subactor — 2026-07-20 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Raport subdomen i wdrożeń stron Subactor — 2026-07-20</h1>
+<h2>Werdykt</h2>
+<p>Nie wszystkie strony używane przez system mają obecnie działające publiczne subdomeny. Cztery hosty są poprawne (<code>subactor.com</code>, <code>docs.subactor.com</code>, <code>docs-stage.subactor.com</code>, <code>logo.subactor.com</code>), trzy publiczne hosty mają niepoprawny certyfikat dla swojej nazwy (<code>www</code>, <code>contracts</code>, <code>founder</code>), a <code>status.subactor.com</code> jest publicznie rozwiązywany mimo zadeklarowanej polityki <code>private</code>.</p>
+<p>Nie każda lokalna usługa powinna dostać publiczną subdomenę. Planfile, Mailpit, Grafana, Prometheus, browser/vault agent, LLM gateway, mock Plesk, konektory i pozostałe runtime'y zawierają dane lub funkcje administracyjne. Pozostają na <code>127.0.0.1</code> albo mogą otrzymać wyłącznie prywatny DNS/VPN.</p>
+<p>Produkcja nie została zmieniona podczas tego zadania. Nowy mechanizm wdrożenia odmówił publikacji przed mutacją, ponieważ aktywny Plesk ma niespójną konfigurację: katalog konektorów zwraca <code>configured:false</code>, a <code>PLESK_BASE_URL=http://mock-plesk:8082</code>, mimo że ogólny doctor URI deklaruje <code>production_publish_ready:true</code>.</p>
+<h2>Jawny ślad procesu</h2>
+<p>Operacja została rozpoczęta ticketem nadrzędnym <code>PLF-584</code>, utworzonym przed inwentaryzacją. Ticket zawiera <code>SUBACTOR_PROCESS_MANIFEST_V1</code> oraz definicje AQL, EQL, OQL i URI. Preflight konektora utworzył osobny wykonawczy ticket <code>PLF-585</code> z rezultatem i odwołaniami do logów.</p>
+<p><code>deploy.sh tickets</code> utworzył idempotentnie tickety docelowe:</p>
+<table>
+<thead><tr><th>Ticket</th><th>Host</th><th>Stan</th><th>Powód oczekiwania</th></tr></thead>
+<tbody>
+<tr><td>PLF-586</td><td><code>subactor.com</code></td><td><code>waiting_input</code></td><td>realny profil Plesk nie jest skonfigurowany</td></tr>
+<tr><td>PLF-587</td><td><code>www.subactor.com</code></td><td><code>waiting_input</code></td><td>zmiana DNS i zapewnienie TLS wymagają decyzji człowieka</td></tr>
+<tr><td>PLF-588</td><td><code>docs.subactor.com</code></td><td><code>waiting_input</code></td><td>realny profil Plesk nie jest skonfigurowany</td></tr>
+<tr><td>PLF-589</td><td><code>docs-stage.subactor.com</code></td><td><code>waiting_input</code></td><td>realny profil Plesk nie jest skonfigurowany</td></tr>
+<tr><td>PLF-590</td><td><code>logo.subactor.com</code></td><td><code>waiting_input</code></td><td>realny profil Plesk nie jest skonfigurowany</td></tr>
+<tr><td>PLF-591</td><td><code>contracts.subactor.com</code></td><td><code>waiting_input</code></td><td>brak profilu Plesk, recepty PHP, DNS i TLS</td></tr>
+<tr><td>PLF-592</td><td><code>founder.subactor.com</code></td><td><code>waiting_input</code></td><td>brak publicznego ingressu, DNS i TLS</td></tr>
+<tr><td>PLF-593</td><td><code>status.subactor.com</code></td><td><code>waiting_input</code></td><td>wymagana decyzja: usunąć publiczny rekord albo dodać chroniony status</td></tr>
+</tbody></table>
+<p>Powtórne uruchomienie <code>tickets</code> wykorzystało istniejące tickety zamiast tworzyć duplikaty.</p>
+<h2>Stan hostów (strict DNS/TLS/HTTPS)</h2>
+<table>
+<thead><tr><th>Host</th><th>DNS</th><th>Strict TLS/HTTP</th><th>Ocena</th></tr></thead>
+<tbody>
+<tr><td><code>subactor.com</code></td><td>A <code>217.160.250.222</code></td><td>200</td><td>działa</td></tr>
+<tr><td><code>www.subactor.com</code></td><td>CNAME <code>subactor.github.io</code></td><td><code>ERR_TLS_CERT_ALTNAME_INVALID</code></td><td>nie działa poprawnie</td></tr>
+<tr><td><code>docs.subactor.com</code></td><td>A <code>217.160.250.222</code></td><td>200</td><td>działa</td></tr>
+<tr><td><code>docs-stage.subactor.com</code></td><td>A <code>217.160.250.222</code></td><td>200</td><td>działa</td></tr>
+<tr><td><code>logo.subactor.com</code></td><td>A <code>217.160.250.222</code></td><td>200</td><td>działa</td></tr>
+<tr><td><code>contracts.subactor.com</code></td><td>CNAME <code>subactor.github.io</code></td><td><code>ERR_TLS_CERT_ALTNAME_INVALID</code></td><td>nie działa publicznie; lokalnie <code>/health.php</code> zwraca OK</td></tr>
+<tr><td><code>founder.subactor.com</code></td><td>CNAME <code>subactor.github.io</code></td><td><code>ERR_TLS_CERT_ALTNAME_INVALID</code></td><td>nie działa publicznie; lokalny control zwraca OK</td></tr>
+<tr><td><code>status.subactor.com</code></td><td>CNAME <code>subactor.github.io</code></td><td>publiczny rekord przy polityce <code>private</code></td><td>naruszenie polityki ekspozycji; lokalny status zwraca OK</td></tr>
+</tbody></table>
+<h2>Wprowadzone rozwiązanie</h2>
+<ol>
+<li><code>platform/config/public-pages.json</code> jest kanonicznym rejestrem stron,</li>
+</ol>
+<p>ekspozycji, lokalnych źródeł, sposobu wdrożenia i wymagań granicznych.</p>
+<ol>
+<li><code>platform/deploy.sh</code> obsługuje <code>inventory</code>, <code>tickets</code>, <code>verify</code> i <code>deploy</code>.</li>
+</ol>
+<p>Każde uruchomienie wymaga istniejącego aktywnego ticketu nadrzędnego albo tworzy go przed pierwszym zapytaniem do publicznego URI.</p>
+<ol>
+<li>Publikacja jest dozwolona dopiero po jednoczesnym spełnieniu warunków:</li>
+</ol>
+<p>jawne <code>SUBACTOR_DEPLOY_CONFIRM=1</code>, <code>PLESK_MODE=live</code>, zewnętrzny (nie mock) <code>PLESK_BASE_URL</code>, <code>connectors.plesk.configured=true</code> i zielony capability preflight. Sam ogólny doctor nie wystarcza.</p>
+<ol>
+<li>Wspierane publikacje statyczne są wykonywane przez `subactor ask --apply</li>
+</ol>
+<p>--yes`; ten przepływ tworzy plan i ticket URI Process przed efektem, wydaje ograniczony grant/lease, a potem zapisuje wynik.</p>
+<ol>
+<li>Weryfikacja HTTPS nigdy nie używa <code>curl -k</code> ani wyłączonej walidacji TLS.</li>
+</ol>
+<p>Stary <code>bin/subactor-live-publish.sh</code> deleguje teraz do kanonicznego, fail-closed <code>deploy.sh</code>.</p>
+<ol>
+<li>Dodano publiczny wariant Caddy dla Panelu Foundera z automatycznym ACME,</li>
+</ol>
+<p>Basic Auth i nagłówkami bezpieczeństwa. Domyślny ingress nadal wiąże się wyłącznie z <code>127.0.0.1</code>; publiczne wystawienie wymaga jawnej zmiany.</p>
+<ol>
+<li>Wszystkie zmienne ingressu są obecne w <code>.env.example</code>; kontrakt środowiska</li>
+</ol>
+<p>został zsynchronizowany bez kopiowania realnych sekretów.</p>
+<h2>Testy</h2>
+<ul>
+<li>testy jednostkowe <code>deploy-public-pages</code>: 7/7;</li>
+<li>test kontraktu środowiska i metadanych platformy: 3/3;</li>
+<li>konfiguracja Docker Compose z overlayem ingressu: poprawna;</li>
+<li>publiczny Caddyfile: <code>Valid configuration</code>;</li>
+<li>próba <code>SUBACTOR_DEPLOY_CONFIRM=1 ./deploy.sh deploy --target main</code>:</li>
+</ul>
+<p>oczekiwana odmowa z kodem 2 i przyczynami <code>plesk_live_profile_not_configured</code> oraz <code>plesk_base_url_is_mock_or_loopback</code>;</p>
+<ul>
+<li>lokalny control, Contractor Portal i System Status: health OK;</li>
+<li>cały system: 15/16 usług zdrowych, 0 krytycznych błędów,</li>
+</ul>
+<p><code>operational_with_degraded_services</code>, <code>autonomy_ready=false</code>.</p>
+<h2>Co pozostało do realnego wdrożenia</h2>
+<ol>
+<li>Founder powinien wprowadzić prawdziwy profil Plesk przez bezpieczny formularz</li>
+</ol>
+<p>integracji/secret intake w Panelu Foundera. Loginów i haseł nie należy podawać w tickecie, poleceniu CLI ani w rozmowie z LLM.</p>
+<ol>
+<li>Po uzyskaniu <code>connectors.plesk.configured=true</code> można wznowić <code>PLF-586</code>,</li>
+</ol>
+<p><code>PLF-588</code>, <code>PLF-589</code>, <code>PLF-590</code> i uruchomić publikację statyczną.</p>
+<ol>
+<li>Dla <code>contracts.subactor.com</code> trzeba dodać do kontraktu bota receptę</li>
+</ol>
+<p>bezpiecznego bundla PHP, backup/rollback, docroot <code>app/public</code>, sekrety poza httpdocs oraz test <code>/health.php</code>. Dopiero potem wykonać zatwierdzony cutover DNS i certyfikat.</p>
+<ol>
+<li>Dla <code>founder.subactor.com</code> trzeba wskazać publiczny host ingressu, ustawić</li>
+</ol>
+<p>hash hasła poza repozytorium, skierować DNS na właściwy serwer i dopiero wtedy uruchomić publiczny Caddyfile/ACME. Link magiczny Foundera pozostaje drugą warstwą logowania aplikacyjnego.</p>
+<ol>
+<li>Founder musi zdecydować, czy <code>status.subactor.com</code> ma zostać usunięty z</li>
+</ol>
+<p>publicznego DNS, czy wdrożony jako osobny, ograniczony i niezawierający danych administracyjnych status page. Obecnego lokalnego panelu nie należy publikować bezpośrednio.</p>
+<p>Po uzupełnieniu profilu Plesk bezpieczna komenda dla wspieranych stron statycznych to:</p>
+<pre><code class="language-bash">cd /home/tom/github/subactor/platform
+SUBACTOR_DEPLOY_CONFIRM=1 ./deploy.sh deploy \
+  --parent PLF-584 --target managed-static</code></pre>
+<p>Skrypt ponownie wykona pełny preflight i przerwie działanie, jeśli konfiguracja lub certyfikaty nie będą zgodne z kontraktem.</p>
+<h2>Aktualizacja 2026-07-21 — PLF-592 i obiekt Plesk</h2>
+<p>Founder zatwierdził rozpoczęcie procesu od utworzenia domeny w Plesku. <code>PLF-592</code> został przeniesiony z ogólnego <code>waiting_input</code> do kolejki <code>project-operator-bot/ready</code> i otrzymał pełny envelope v2 z uporządkowanymi definicjami AQL, EQL, OQL oraz URI. Reużywalna recepta znajduje się w <code>deployment/founder-ingress-plesk.urirun.json</code>.</p>
+<p>Wykonanie produkcyjne użyło kolejno:</p>
+<ol>
+<li><code>plesk://host/doctor/query/report</code> — connector <code>0.12.4</code> gotowy (<code>PLF-750</code>);</li>
+<li><code>plesk://host/subscription/query/capabilities</code> — uwierzytelniony profil</li>
+</ol>
+<p>subskrypcji <code>subactor.com</code> (<code>PLF-751</code>);</p>
+<ol>
+<li><code>plesk://host/site/command/subdomain-ensure</code> — dry-run i niezmienny</li>
+</ol>
+<p><code>plan_hash</code> (<code>PLF-752</code>);</p>
+<ol>
+<li>tę samą komendę w trybie apply z jednorazowym grantem ryzyka <code>boundary</code> —</li>
+</ol>
+<p>utworzono i odczytowo potwierdzono <code>founder.subactor.com</code>, Plesk object ID <code>314</code>, docroot <code>founder.subactor.com</code>; receipt znajduje się bezpośrednio w <code>PLF-592</code>;</p>
+<ol>
+<li><code>plesk://host/dns/query/authority</code> — autorytatywnym providerem pozostaje</li>
+</ol>
+<p>Cloudflare.</p>
+<p>Po wykonaniu bramki wróciły do <code>AUTONOMY_MUTATIONS_ENABLED=0</code> oraz pustego <code>PLESK_SUBDOMAIN_APPLY</code>. Bezpośrednie sprawdzenie originu <code>217.160.250.222</code> z nagłówkiem <code>Host: founder.subactor.com</code> potwierdza działający vhost: HTTP przekierowuje na HTTPS, HTTPS zwraca jeszcze <code>404</code>, a origin prezentuje domyślny certyfikat Pleska bez SAN.</p>
+<p>Następna zależność jest jawna: przed publicznym cutoverem DNS i ACME trzeba zapewnić osiągalny, uwierzytelniony upstream aplikacji oraz zaimplementować recenzowaną trasę connectora <code>plesk://host/site/command/reverse-proxy-ensure</code>. Lokalny <code>http://127.0.0.1:8091</code> na Lenovo nie jest osiągalny z serwera Plesk i nie może być wpisany jako upstream Pleska. Dopiero po zielonym teście upstreamu wolno wykonać <code>dns/command/reconcile</code>, <code>site/command/ssl-ensure</code>, propagację i strict HTTPS postflight.</p>
+<h2>Aktualizacja 2026-07-21 — dynamiczne rozszerzenia Plesk</h2>
+<p>Wniosek o „braku profilu Plesk” opisuje historyczny stan z 2026-07-20. W dniu 2026-07-21 profil live <code>https://prototypowanie.pl:8443</code> działa w URI node, a <code>urirun-connector-plesk</code> obsługuje warstwy REST v2, XML API, SFTP/FTPS oraz dynamiczny katalog zainstalowanych extensions.</p>
+<p>Nowe procesy URI:</p>
+<ul>
+<li><code>plesk://host/extensions/query/catalog</code> — oficjalny XML <code>extension.get</code>;</li>
+<li><code>plesk://host/extensions/query/capabilities</code> — połączenie stanu live z</li>
+</ul>
+<p>zatwierdzonymi profilami operacji;</p>
+<ul>
+<li><code>plesk://host/extension/query/call</code> — wyłącznie profilowane zapytania XML;</li>
+<li><code>plesk://host/extension/command/call</code> — dry-run i mutacja dopiero po bramkach,</li>
+</ul>
+<p>dokładnym <code>plan_hash</code> i jednorazowym podpisanym grancie.</p>
+<p>Zainstalowany moduł jest obiektem dynamicznym: pojawia się automatycznie w discovery, lecz pozostaje <code>discovery-only</code>, dopóki jego operacja nie otrzyma przejrzanego profilu. Zapobiega to utożsamianiu przycisku GUI z bezpiecznym, stabilnym API. SSL It! jest modelowany jako extension, ale operacje certyfikatu delegują do istniejącego <code>plesk://host/site/command/ssl-ensure</code>, zamiast wywoływać nieudokumentowane endpointy panelu.</p>
+<p>Root SSH/CLI pozostaje osobną przyszłą powierzchnią uprawnień. Konto systemowe subskrypcji używane przez SFTP nie może zostać automatycznie podniesione do administratora serwera Plesk.</p>
+<h2>Aktualizacja 2026-07-21 — status produkcyjny i DNS API</h2>
+<p>Founder zdecydował o publicznym <code>status.subactor.com</code>. Nie jest publikowany lokalny panel z portu <code>8199</code>, ponieważ zawiera nazwy kontenerów, adresy wewnętrzne i szczegóły odpowiedzi usług. Zamiast niego powstał ograniczony serwis PHP w <code>observability/services/public-status</code>, który odpytuje wyłącznie stałą listę publicznych HTTPS, wymusza ścisłą walidację TLS i zwraca tylko nazwę hosta, kod HTTP, opóźnienie i znormalizowany błąd. Nie przyjmuje URL od użytkownika, więc nie może działać jako SSRF.</p>
+<p>Connector Plesk jest jednym wejściem URI, ale nie zakłada już, że lokalna strefa Pleska jest autorytatywna. <code>subactor.com</code>, <code>autonomicznosc.pl</code> i <code>prototypowanie.pl</code> są delegowane do Cloudflare. Zmiana lokalnej strefy Pleska dla tych domen nie zmienia publicznego DNS. Connector udostępnia:</p>
+<ul>
+<li><code>plesk://host/dns/query/records</code> — filtrowany odczyt <code>dns.get_rec</code>;</li>
+<li><code>plesk://host/dns/command/replace</code> — konfliktowe A/AAAA/CNAME → jeden rekord</li>
+</ul>
+<p>docelowy przez <code>dns.del_rec</code> + <code>dns.add_rec</code> dla stref Pleska;</p>
+<ul>
+<li><code>plesk://host/dns/query/authority</code> — consensus NS z Cloudflare i Google;</li>
+<li><code>plesk://host/dns/command/reconcile</code> — provider-aware dry-run/apply, delegujący</li>
+</ul>
+<p>zapis do Cloudflare API, gdy Cloudflare jest autorytatywny;</p>
+<ul>
+<li><code>plesk://host/dns/query/propagation</code> — porównanie oczekiwanej wartości i TTL</li>
+</ul>
+<p>między publicznymi resolverami oraz lokalnym resolverem runtime dla A/AAAA.</p>
+<p>Każdy receipt podaje faktyczny <code>provider</code>, strefę i nameservery. Cloudflare token oraz <code>zone_id</code> są pobierane z wpisu vault <code>cloudflare-dns</code> dla originu <code>https://api.cloudflare.com</code> i nigdy nie trafiają do payloadu ani wyniku. Mutacja wymaga dry-run, identycznego <code>plan_hash</code>, podpisanego jednorazowego grantu ryzyka <code>boundary</code>, master gate oraz odpowiednio <code>PLESK_DNS_APPLY=1</code> lub <code>CLOUDFLARE_DNS_APPLY=1</code>. Weryfikacja API providera i propagacja publiczna są osobnymi stanami, ponieważ rozproszony DNS może zachowywać poprzednią wartość do wygaśnięcia cache.</p>
+<p>Odczyt live <code>extensions/query/capabilities</code> zwrócił aktywny <code>panel-migrator 2.34.0</code> jako <code>discovery-only</code>. SSL It! nie został zwrócony przez oficjalny <code>extension.get</code>, mimo że jego ekran jest dostępny w panelu. To jest dodatkowy argument, by nie uzależniać obsługi certyfikatów od samej listy extensions i zachować osobny, weryfikowany proces <code>ssl-ensure</code>.</p>
+<h2>Aktualizacja 2026-07-21 — stan po PLF-730</h2>
+<p>Read-only inventory został powtórzony po uruchomieniu profilu live Plesk. Ticket <code>PLF-730</code> zawiera receipt audytu 8 hostów. Platforma lokalna ma 16/16 zdrowych usług, a bramka odczytowa Plesk jest zielona.</p>
+<p>Publicznie działają cztery hosty:</p>
+<ul>
+<li><code>subactor.com</code>, <code>docs.subactor.com</code>, <code>docs-stage.subactor.com</code> i</li>
+</ul>
+<p><code>logo.subactor.com</code> wskazują na <code>217.160.250.222</code>, przechodzą strict TLS i zwracają HTTP 200;</p>
+<ul>
+<li><code>www.subactor.com</code>, <code>contracts.subactor.com</code>, <code>founder.subactor.com</code> i</li>
+</ul>
+<p><code>status.subactor.com</code> nadal dziedziczą publiczny CNAME <code>subactor.github.io</code> i kończą się <code>ERR_TLS_CERT_ALTNAME_INVALID</code>.</p>
+<p>Edycja strefy subskrypcji w Plesku nie wymaga credentiala Cloudflare i może być wykonana przez panel lub <code>plesk://host/dns/command/replace</code>. Nie oznacza to jednak, że strefa Pleska jest publicznym autorytetem. Delegacja <code>subactor.com</code> wskazuje obecnie na <code>addyson.ns.cloudflare.com</code> i <code>roman.ns.cloudflare.com</code>, więc resolver publiczny nie odczytuje rekordów z lokalnej strefy Pleska.</p>
+<p>Zgodnie z ostatnią decyzją Foundera rekord <code>*.subactor.com</code> pozostaje nieobecny w lokalnej strefie Pleska. Nie należy go automatycznie odtwarzać. Publiczny wildcard/CNAME widoczny przez resolvery jest osobnym stanem u obecnego autorytetu DNS. Cutover konkretnych hostów wymaga albo zmiany rekordów w autorytatywnej strefie, albo świadomej zmiany delegacji całej domeny; tych dwóch operacji nie wolno przedstawiać jako lokalnej edycji Pleska.</p>
+<p>Narzędzie <code>deploy-public-pages.mjs</code> domyka teraz read-only tickety <code>inventory</code>/<code>verify</code> z completion receiptem również wtedy, gdy wykryje problemy. Stan <code>findings_detected</code> jest prawidłowym wynikiem zakończonego audytu, a nie powodem pozostawienia ticketu w <code>running</code>. Kod procesu nadal zwraca niezerowy exit code, aby CI i operator zauważyli czerwone hosty.</p>
+<h3>Scope profilu SFTP</h3>
+<p>Read-only proces <code>PLF-690</code> wykazał, że wspólny profil SFTP z parametrami <code>host=prototypowanie.pl</code>, <code>domain=autonomicznosc.pl</code>, <code>remote_path=/httpdocs</code> otwierał katalog zawierający 21 plików innego wdrożenia, a nie oczekiwane 9 plików projektu. Sam argument <code>domain</code> nie zmienia chrootu konta SFTP.</p>
+<p>Od <code>urirun-connector-plesk</code> v0.12.4 (<code>PLF-736</code>) read-only remote inventory odrzuca taki niejednoznaczny zakres kodem <code>plesk_site_inventory_scope_unbound</code> przed pobraniem credentiala. <code>/httpdocs</code> jest dozwolone tylko wtedy, gdy hostname efektywnego <code>credential_origin</code> w vault odpowiada żądanej domenie. Alternatywą jest jawna ścieżka domenowa, np. <code>/var/www/vhosts/autonomicznosc.pl/httpdocs</code>. <code>PLF-690</code> pozostaje otwarty do czasu utworzenia domenowo związanego profilu lub potwierdzenia jawnej ścieżki; nie wykonano mutacji.</p>
+<h2>Aktualizacja 2026-07-21 — publikacja statusu i realny bloker Foundera</h2>
+<p>Nowszy live audit oraz wykonanie opisuje <a href="../operations/public-ingress-ticket-runtime-review-2026-07-21.html"><code>../operations/public-ingress-ticket-runtime-review-2026-07-21.md</code></a>. <code>status.subactor.com</code> jest już opublikowany i ma receipts PLF-685/PLF-593. <code>founder.subactor.com</code> ma poprawny DNS i TLS, lecz nadal nie ma osiągalnego upstreamu aplikacyjnego; dlatego PLF-592 pozostaje <code>waiting_input</code>, a nie <code>ready</code>.</p>
+</main>
+</body>
+</html>

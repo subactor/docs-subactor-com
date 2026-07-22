@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jeden runtime operacyjny Subactor — AQL → OQL → URI → EQL — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Jeden runtime operacyjny Subactor — AQL → OQL → URI → EQL</h1>
+<p>Data audytu: 2026-07-21</p>
+<h2>Werdykt</h2>
+<p>Subactor powinien utrzymywać <strong>jeden operacyjny punkt wykonywania efektów</strong>: <code>urirun-node</code> z connectorami <code>urirun-connector-*</code>. Control, portal, agenci, boty i użytkownicy nie powinni wykonywać zmian bezpośrednio przez SDK, <code>fetch</code>, SSH, CLI ani GUI. Powinni tworzyć ten sam typ żądania procesu, a warstwa wykonawcza powinna zawsze realizować je jako konkretne URI.</p>
+<p>Nie oznacza to przeniesienia całej logiki AQL, planowania OQL i oceny EQL do procesu noda. Najprostszy logicznie podział to:</p>
+<ul>
+<li><strong>Control/Planfile</strong> — tożsamość, decyzja AQL, kanoniczny plan OQL, approval i</li>
+</ul>
+<p>trwały ticket utworzony przed efektem;</p>
+<ul>
+<li><strong>Subactor runtime/Bridge</strong> — jedna bramka wykonawcza: weryfikacja dowodu,</li>
+</ul>
+<p>idempotency claim, najmniejsza projekcja uprawnienia i ocena wyniku EQL;</p>
+<ul>
+<li><strong>urirun-node</strong> — jedyny runtime efektów: routing dokładnego URI, izolacja,</li>
+</ul>
+<p>timeout, transport, registry etag i provenance;</p>
+<ul>
+<li><strong>connector</strong> — implementacja jednej capability; pobiera sekret przez</li>
+</ul>
+<p>referencję dopiero na granicy wykonania i nie podejmuje decyzji biznesowych.</p>
+<p>Takie rozdzielenie zmniejsza liczbę zabezpieczeń rozrzuconych po usługach, ale nie usuwa pięciu niezbędnych inwariantów. Zamiast powtarzać je w każdym bocie i connectorze, egzekwujemy je raz w kanonicznym pipeline.</p>
+<h2>Stan zastany</h2>
+<p>Live <code>urirun-node</code> działa w trybie <code>execute</code>, wersja <code>0.4.200</code>, udostępnia 555 tras, wymaga auth dla <code>/run</code> i nie pozwala zdalnie rozwiązywać sekretów. Globalna polityka noda ma jednak <code>allow=[&quot;**&quot;]</code>; bezpieczeństwo wieloaktorskie musi więc pozostać w jedynym gatewayu, a token noda nie może trafić do portali, agentów ani użytkowników.</p>
+<p>Obecna ścieżka produkcyjna ma już dobre elementy:</p>
+<ol>
+<li>Process Pack zawiera osobne NL, AQL, EQL, OQL i receptę URI.</li>
+<li>Planfile przechowuje <code>subactor.process-envelope.v2</code> przed wykonaniem.</li>
+<li>Bridge sprawdza ticket, kolejność czasową, OQL/URI i idempotency.</li>
+<li><code>TaskRuntime</code> wywołuje uwierzytelnione <code>POST /run</code> w <code>urirun-node</code>.</li>
+<li>Bridge ocenia <code>EXPECT</code> i zapisuje wynik/evidence z powrotem do ticketu.</li>
+</ol>
+<p>Rozproszenie nadal występuje w kilku miejscach:</p>
+<table>
+<thead><tr><th>Obszar</th><th>Stan</th><th>Skutek</th></tr></thead>
+<tbody>
+<tr><td>Bridge <code>EXECUTE_HANDLERS</code></td><td>część e-mail/Plesk/Slack/Teams/Calendar/Org działa bezpośrednio</td><td>istnieją dwa wykonawcze tory: adapter i URI runtime</td></tr>
+<tr><td><code>TaskRuntime</code></td><td>HTTP node plus legacy CLI i <code>lab-audit</code> fallback</td><td>fallback może wyglądać jak sukces, choć efektu nie było</td></tr>
+<tr><td>URI allowlist</td><td>bywała dostarczana przez callera lub zastępowana szerokim fallbackiem Plesk</td><td>dodatkowa polityka mogła różnić się od ticketu/AQL</td></tr>
+<tr><td>Auth noda</td><td>jeden sekret gatewayu, brak tożsamości aktora w nodzie</td><td>bez gatewayu node nie rozróżnia Foundera, usera i bota</td></tr>
+<tr><td>EQL</td><td>część <code>EXPECT</code> jest sprawdzana przez Bridge, część jako TestQL/postflight</td><td>nie ma jeszcze jednego formatu receipt dla każdego runu</td></tr>
+<tr><td>Sekrety</td><td>część connectorów korzysta z vault refs, część usług ma legacy env</td><td>więcej miejsc materializacji credentiali</td></tr>
+</tbody></table>
+<h2>Kanoniczny przepływ wielowarstwowy</h2>
+<pre><code class="language-text">NL / API / bot / user
+        │  dane nieufne, bez prawa wykonania
+        ▼
+Process Pack + schema
+        │
+        ▼
+AQL: kto, co, gdzie, koszt, limit, ważność, delegacja
+        │  wynik = allow / deny / needs-human
+        ▼
+OQL: kanoniczny AST + zależności + EXPECT + plan_hash
+        │
+        ▼
+Planfile: ticket v2 utworzony przed efektem + approval/grant
+        │
+        ▼
+Runtime authorization projection
+        │  ticket ∩ kontrakt aktora ∩ approval
+        │  wynik = dokładnie jedno konkretne URI
+        ▼
+Bridge execution gateway
+        │  idempotency lease + correlation run-id
+        ▼
+urirun-node /run
+        │  node auth + route registry + isolation + timeout
+        ▼
+urirun-connector-*
+        │  secretRef → zewnętrzna capability
+        ▼
+provenance + result
+        │
+        ▼
+EQL/TestQL: expected kontra actual
+        │
+        ▼
+completion receipt + audit + Planfile status</code></pre>
+<h3>AQL — authority, nie wykonanie</h3>
+<p>AQL powinno odpowiadać wyłącznie na pytania o autoryzację i wybór zatwierdzonego procesu. Kontrakt aktora określa modele, operacje OQL, URI Process, limity, koszt, wymagane dowody, ważność i możliwość delegacji. LLM może zaproponować typowaną intencję, ale nie tworzy dowolnego URI i nie dostaje tokenu noda.</p>
+<h3>OQL — jedyny plan operacji</h3>
+<p>OQL jest kanonicznym, hashowanym planem. Każdy krok mutujący musi wskazywać receptę URI oraz oczekiwany wynik. Zmiana payloadu, kolejności, URI albo targetu po approval unieważnia <code>plan_hash</code> i grant. OQL nie powinno zawierać sekretów — wyłącznie identyfikatory profili i <code>secretRef</code>.</p>
+<h3>URI — jedyny sposób wykonania efektu</h3>
+<p>Gateway przekazuje do runtime projekcję <code>subactor.process-runtime-authorization.v1</code>. Powstaje ona z już zweryfikowanego ticketu i opcjonalnego kontraktu/delegacji aktora. Delegacja może tylko zawęzić powierzchnię ticketu. Do noda trafia najmniejsze uprawnienie: jedno konkretne URI, nie wildcard dostarczony przez callera.</p>
+<p>Node wykonuje routing i techniczną izolację. Mutacje powinny mieć ścieżkę <code>/command/</code> i <code>isolated=true</code>; zapytania <code>/query/</code> mogą pozostać in-process, jeżeli connector nie materializuje sekretu i nie ma efektu ubocznego.</p>
+<h3>EQL — warunek uznania wyniku, nie ozdoba</h3>
+<p>Sukces HTTP lub exit code nie kończy procesu. Gateway porównuje wynik z <code>EXPECT</code> i definicją EQL, zapisuje actual/expected/verifier/evidence, a dopiero potem tworzy completion receipt. Nieudane EQL oznacza failed/needs-review nawet wtedy, gdy connector zwrócił <code>ok=true</code>.</p>
+<h2>Minimalny zestaw zabezpieczeń po konsolidacji</h2>
+<p>Pozostają tylko zabezpieczenia o różnych odpowiedzialnościach:</p>
+<ol>
+<li><strong>Identity + AQL</strong> — czy aktor ma prawo zlecić capability.</li>
+<li><strong>Ticket/plan/grant</strong> — czy dokładny plan istniał i został zatwierdzony przed</li>
+</ol>
+<p>efektem; grant jest związany z hashem i jednorazowy.</p>
+<ol>
+<li><strong>Runtime projection</strong> — przecięcie ticketu i kontraktu daje jedno konkretne</li>
+</ol>
+<p>URI; caller nie wysyła własnej allowlisty.</p>
+<ol>
+<li><strong>Node/connector boundary</strong> — prywatny token noda, allow policy, izolacja,</li>
+</ol>
+<p>timeout, ograniczony filesystem/network i sekret przez referencję.</p>
+<ol>
+<li><strong>EQL receipt</strong> — efekt jest zaakceptowany tylko z dowodem expected=actual.</li>
+</ol>
+<p>Można następnie usunąć duplikaty: ręczne allowlisty w botach, osobne bezpośrednie SDK w Bridge, biznesowe RBAC w connectorach, plaintext env w wielu usługach oraz lokalne retry/idempotency implementowane dla każdego adaptera osobno. Nie usuwa się natomiast uwierzytelnienia zewnętrznego API, walidacji wejścia connectora ani izolacji mutacji — są to inne granice.</p>
+<h2>Model wielu organizacji, userów i botów</h2>
+<p>Node powinien ufać wyłącznie execution gatewayowi, nie każdemu końcowemu aktorowi. Gateway zapisuje i egzekwuje:</p>
+<ul>
+<li><code>organization_id</code> / tenant;</li>
+<li>principal <code>{kind,id}</code>: human, bot, provider, organization lub quorum;</li>
+<li>fingerprint kontraktu AQL i identyfikator delegacji;</li>
+<li><code>ticket_id</code>, <code>plan_id</code>, <code>decision_id</code>, <code>step_id</code>, <code>plan_hash</code>;</li>
+<li>konkretne URI i hash payloadu;</li>
+<li>idempotency key, budżet, deadline i correlation/run id;</li>
+<li>wymagany poziom approval i EQL receipt.</li>
+</ul>
+<p>Connector nie musi znać całej hierarchii organizacyjnej. Otrzymuje zatwierdzony, minimalny payload i profil credentiali przypisany do tenant/capability. Wspólny node może obsługiwać wielu aktorów tylko wtedy, gdy nie da się ominąć gatewayu; token <code>/run</code> pozostaje dostępny wyłącznie Bridge, a zdalne nody korzystają z osobnego LAN gatewayu/key-auth i zawężonej polityki środowiska.</p>
+<h2>Plan migracji</h2>
+<h3>P0 — jedna projekcja uprawnień (wdrożone w tej sesji)</h3>
+<ul>
+<li>runtime wylicza projekcję z ticketu v2 i delegacji AQL;</li>
+<li>delegacja nie może poszerzyć URI zadeklarowanego w tickecie;</li>
+<li>Bridge przestał ufać <code>allowed_uri_processes</code> z requestu i usunął szerokie</li>
+</ul>
+<p>fallbacki Plesk dla ścieżek URI;</p>
+<ul>
+<li>node run otrzymuje correlation id powiązane z rekordem idempotency;</li>
+<li>odpowiedź runtime zawiera bezsekretną projekcję autoryzacji.</li>
+</ul>
+<h3>P1 — wszystkie efekty przez URI</h3>
+<p>Przenieść w tej kolejności bezpośrednie handlery Bridge:</p>
+<ol>
+<li><code>email.send</code>, Slack, Teams, webhook i Calendar — małe, dobrze odseparowane</li>
+</ol>
+<p>connectory z jasnym rezultatem;</p>
+<ol>
+<li>Organization Core i Planfile commands — wewnętrzne connectory z tokenem</li>
+</ol>
+<p>service-to-service przez secretRef;</p>
+<ol>
+<li>Site Generator i TestQL — deterministyczne query/build/postflight;</li>
+<li>pozostałe Plesk mail/domain/certificate/extensions — mutacje dopiero po</li>
+</ol>
+<p><code>plan_hash</code> + grant; istniejące query można migrować wcześniej;</p>
+<ol>
+<li>browser/KVM/LinkedIn — osobny node Lenovo, jawna sesja/lease i dowód wizualny.</li>
+</ol>
+<p>Po każdym przeniesieniu stary handler pozostaje chwilowo tylko jako shadow comparison. Nie może stanowić automatycznego fallbacku dla mutacji.</p>
+<h3>P2 — Bridge jako cienki execution gateway</h3>
+<p>Bridge ma zachować wyłącznie: ticket proof, AQL projection, approval/grant, idempotency, wywołanie noda, EQL i evidence. <code>EXECUTE_HANDLERS</code> domenowe znikają.</p>
+<h3>P3 — wyłączenie alternatywnych runtime'ów w produkcji</h3>
+<ul>
+<li>CLI <code>urirun run</code> tylko dla development/diagnostyki;</li>
+<li><code>lab-audit</code> nigdy nie raportuje sukcesu operacji mutującej;</li>
+<li>brak bezpośrednich wywołań z agentów do zewnętrznych systemów;</li>
+<li>każdy produkcyjny efekt bez <code>runId</code>, provenance i ticketu jest błędem audytu.</li>
+</ul>
+<h3>P4 — receipt i obserwowalność</h3>
+<p>Jeden trace przechodzi przez ticket → OQL → Bridge execution → node run → connector → EQL. UI „Uruchomienia URI” pokazuje plan, principal, node, exact URI, czas, wynik, dowód i retry/DLQ bez ujawniania sekretów.</p>
+<h2>Kryteria ukończenia konsolidacji</h2>
+<ul>
+<li>100% mutujących OQL kończy się wywołaniem <code>urirun-node /run</code>;</li>
+<li>0 caller-controlled URI allowlists;</li>
+<li>0 produkcyjnych sukcesów <code>lab-audit</code> dla mutacji;</li>
+<li>0 sekretów w OQL, ticketach, payload logs i odpowiedziach;</li>
+<li>każdy run ma ticket v2, actor/tenant, exact URI, idempotency key i EQL receipt;</li>
+<li>connector coverage i live route catalog pokrywają wszystkie aktywne kontrakty</li>
+</ul>
+<p>AQL, bez kolizji właścicieli tras;</p>
+<ul>
+<li>wyłączenie lub utrata noda daje jawny <code>runtime_unavailable</code>, nigdy pozorny</li>
+</ul>
+<p>sukces alternatywnego adaptera.</p>
+<h2>Walidacja P0</h2>
+<p>Po przebudowaniu lokalnych usług <code>hr-control</code> i <code>hr-bridge</code> wykonano proces <code>plesk://host/doctor/query/report</code> przez publiczne wejście Control, bez pola <code>allowed_uri_processes</code> w żądaniu. System utworzył ticket <code>PLF-657</code>, zweryfikował process envelope v2, wyliczył <code>subactor.process-runtime-authorization.v1</code> ograniczone dokładnie do tego URI i wykonał proces w <code>urirun-node</code>. Node zwrócił run id <code>exec_1784627771785_962288e95b7f</code>, a ticket otrzymał completion receipt oraz evidence.</p>
+<p>Regresję sprawdzono testami automatycznymi:</p>
+<ul>
+<li>runtime: 91/91;</li>
+<li>klient <code>urirun-process-client</code>: 6/6;</li>
+<li>Bridge/connectors: 29/29;</li>
+<li>Control/core: 265/265;</li>
+<li>capability preflight: 18/18;</li>
+<li>przekrojowy testkit platformy: 179/179.</li>
+</ul>
+<p>P0 zamyka caller-controlled allowlist i szerokie fallbacki URI. Nie oznacza jeszcze ukończenia całej konsolidacji: domenowe handlery Bridge czekają na P1, a jednolity fingerprint kontraktu aktora i wykonywalny receipt EQL dla każdego typu procesu pozostają zakresem P4.</p>
+<p>Zdalną granicę runtime sprawdzono dodatkowo symulacją Connector LAN. Test <code>PLF-667</code> przeszedł przez mTLS i Bridge do tego samego <code>urirun-node</code>, potwierdził role klientów, filtrowanie tras, brak bezpośredniego dostępu klienta LAN do noda oraz brak sekretnego markera w audycie. Topologia pozostawia node wyłącznie w sieci <code>uri-executor</code>; tylko Bridge łączy ją z izolowaną siecią <code>connector-execution</code>, a gateway wystawia na LAN zawężony kontrakt mTLS.</p>
+<h2>Decyzja architektoniczna</h2>
+<p>Docelowy standard to **jeden runtime efektów, jeden gateway polityki, wiele connectorów**. Nie należy budować jednego monolitycznego connectora ani przenosić AQL/EQL do każdego handlera. Modularność pozostaje na poziomie capability, a jednolitość na poziomie envelope, autoryzacji, wykonania i receipt.</p>
+</main>
+</body>
+</html>

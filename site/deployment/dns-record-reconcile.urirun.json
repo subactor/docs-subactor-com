@@ -1,0 +1,82 @@
+{
+  "id": "dns-record-reconcile",
+  "name": "Reconcile DNS desired → observed through authoritative provider",
+  "description": "Boundary-class provider-aware process. The Plesk connector is the unified URI facade, while its receipt truthfully identifies Cloudflare or Plesk as the authoritative DNS provider. Apply requires human approval, an exact plan_hash and a provider credential leased from vault.",
+  "situation": {
+    "hostname": "docs.subactor.com",
+    "desired_state_ref": "docs/deployment/dns-desired-state.json",
+    "staging_hostname": "docs-stage.subactor.com",
+    "risk_class": "boundary"
+  },
+  "uri_processes": [
+    {
+      "id": "dns-desired-load",
+      "name": "Load desired DNS from repo SSOT",
+      "actor": "bot:project-operator-bot",
+      "uri": "fs://host/file/query/read",
+      "payload": {
+        "path": "docs/deployment/dns-desired-state.json",
+        "note": "Stub: wire to real fs:// or inline payload when registering pack"
+      },
+      "depends_on": [],
+      "human_approval": false,
+      "required": false
+    },
+    {
+      "id": "dns-detect-authority",
+      "name": "Detect authoritative DNS provider (read-only)",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/dns/query/authority",
+      "payload": {
+        "zone": "subactor.com"
+      },
+      "depends_on": [],
+      "on_fail": "halt",
+      "human_approval": false
+    },
+    {
+      "id": "dns-mutate-apply",
+      "name": "Prepare or apply DNS reconcile (HITL — provider write)",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/dns/command/reconcile",
+      "payload": {
+        "zone": "subactor.com",
+        "host": "docs.subactor.com",
+        "record_type": "A",
+        "value": "217.160.250.222",
+        "ttl": 1,
+        "proxied": false,
+        "expected_provider": "cloudflare",
+        "cloudflare_vault_entry_id": "cloudflare-dns",
+        "apply": false
+      },
+      "depends_on": ["dns-detect-authority"],
+      "human_approval": true,
+      "on_fail": "ticket",
+      "required": true
+    },
+    {
+      "id": "dns-verify-propagation",
+      "name": "Verify resolver consensus and TTL",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/dns/query/propagation",
+      "payload": {
+        "host": "docs.subactor.com",
+        "record_type": "A",
+        "expected_value": "217.160.250.222"
+      },
+      "depends_on": ["dns-mutate-apply"],
+      "human_approval": false,
+      "on_fail": "ticket",
+      "required": true
+    }
+  ],
+  "notes": [
+    "Connector routes exist in urirun-connector-plesk v0.12.1; urirun-node must refresh its connector image/registry before execution.",
+    "Dry-run checks authority and the provider API state; it never changes DNS.",
+    "Apply mutate step stays human_approval=true — never zero-touch production DNS.",
+    "2026-07-21 public observe: docs.subactor.com and docs-stage.subactor.com resolve to A 217.160.250.222 through Cloudflare authoritative nameservers.",
+    "Until the cloudflare-dns vault entry exists, authority and propagation queries work but provider API dry-run/apply fails closed.",
+    "Cloudflare batch changes are transactional in its database, but distributed DNS propagation remains observable as a separate step."
+  ]
+}

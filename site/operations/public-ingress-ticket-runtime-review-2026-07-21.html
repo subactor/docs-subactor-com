@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Public ingress i wykonanie ticketów — przegląd 2026-07-21 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Public ingress i wykonanie ticketów — przegląd 2026-07-21</h1>
+<h2>Wynik</h2>
+<p>Przegląd objął bieżący stan publicznych hostów, PLF-592, PLF-593, PLF-685, PLF-706 i PLF-713 oraz zgodność aktywnych URI Process z rejestrem runtime.</p>
+<ul>
+<li><code>status.subactor.com</code> został opublikowany przez</li>
+</ul>
+<p><code>plesk://host/site/command/sync</code>. PLF-685 i PLF-593 są <code>done</code> i mają EQL receipts. Root i <code>/health.php</code> zwracają HTTP 200 z poprawnym TLS.</p>
+<ul>
+<li>Dashboard świadomie zwraca <code>degraded</code>: 5/7 publicznych testów jest zdrowych;</li>
+</ul>
+<p>niedostępne pozostają aplikacja Foundera oraz Contracts.</p>
+<ul>
+<li>PLF-592 nie jest już fałszywie <code>ready</code>. Jest <code>waiting_input</code>, ponieważ brakuje</li>
+</ul>
+<p>publicznie osiągalnego, uwierzytelnionego upstreamu HTTPS do Control.</p>
+<ul>
+<li>PLF-706 i PLF-713 były duplikatami jednego intake Cloudflare. Oba zostały</li>
+</ul>
+<p>anulowane: pierwszy był zastąpiony, drugi wygasł, żaden nie zapisał sekretu.</p>
+<ul>
+<li>Watchdog nie wykazał zawieszonych egzekucji botów.</li>
+</ul>
+<h2>Dlaczego Founder nie został opublikowany wcześniej</h2>
+<p>Nie blokował go sam certyfikat ani brak obiektu domeny w Plesku. Obiekt <code>founder.subactor.com</code> istnieje, DNS wskazuje <code>217.160.250.222</code>, a certyfikat obejmuje hostname. Plesk serwuje jednak stronę domyślną i 404 dla endpointów Foundera, ponieważ nie ma trasy do działającego Control.</p>
+<p>Lenovo nie udostępnia obecnie takiego originu publicznie. Jego publiczny port 443 kończy TLS na routerze Orange, a porty lokalnego ingressu nie są osiągalne. Plesk nie może więc bezpiecznie reverse-proxy'ować do <code>127.0.0.1:8091</code> ani do prywatnej nazwy kontenera.</p>
+<h2>Błędy systemowe, które utrudniały diagnozę</h2>
+<ol>
+<li>Ticket deklarował</li>
+</ol>
+<p><code>plesk://host/site/command/reverse-proxy-ensure</code>, zanim route istniał w runtime.</p>
+<ol>
+<li>Nierozwiązana wartość <code>pending:reachable-subactor-control</code> trafiła do</li>
+</ol>
+<p>wykonywalnego procesu.</p>
+<ol>
+<li>Lifecycle dopuszczał stan <code>ready</code> mimo kroku z blokerem.</li>
+<li>Bridge zastępował dokładny błąd connectora ogólnym</li>
+</ol>
+<p><code>urirun_handler_failed</code>.</p>
+<ol>
+<li>Wdrożenie strony uznawało udany transfer za wynik końcowy. Test root URL</li>
+</ol>
+<p>wykrył pozostawiony <code>index.html</code> Pleska, mimo że <code>/health.php</code> już działał.</p>
+<ol>
+<li>Secret intake używał losowej korelacji jako idempotency key, dlatego dwie</li>
+</ol>
+<p>próby tego samego <code>source_ticket + provider</code> tworzyły osobne tickety.</p>
+<ol>
+<li>Zmiana DNS została wykonana bez powiązanego receiptu providera. Stan live był</li>
+</ol>
+<p>nowszy niż wynik zapisany w ticketach.</p>
+<h2>Wprowadzone zabezpieczenia</h2>
+<ul>
+<li>Plesk connector v0.14.0 obsługuje bounded route</li>
+</ul>
+<p><code>site/command/reverse-proxy-ensure</code>. Dry-run wymaga publicznego HTTPS upstreamu z obserwowalnym challenge 401/403. Apply dodatkowo wymaga root SSH/CLI, przypiętego fingerprintu, dokładnego plan hash, jednorazowego grantu i osobnej bramki <code>PLESK_REVERSE_PROXY_APPLY=1</code>.</p>
+<ul>
+<li>Connector zachowuje obce dyrektywy nginx, zarządza tylko oznaczonym blokiem,</li>
+</ul>
+<p>uruchamia reconfigure i <code>nginx -t</code>, a przy błędzie przywraca poprzedni plik.</p>
+<ul>
+<li>Bridge zachowuje teraz dokładny kod handlera. Powtórny test PLF-592 zapisał</li>
+</ul>
+<p><code>plesk_reverse_proxy_upstream_https_required</code>.</p>
+<ul>
+<li>Secret intake odrzuca drugi aktywny request o tym samym kluczu biznesowym;</li>
+</ul>
+<p>nowy może powstać po wygaśnięciu poprzedniego.</p>
+<ul>
+<li>Audyt <code>npm run tickets:routes</code> porównuje wszystkie aktywne procesy z live</li>
+</ul>
+<p>registry, wykrywa placeholdery i <code>false-ready</code>, a zadeklarowane <code>blueprint-only</code> raportuje osobno.</p>
+<ul>
+<li>Public status ma jawny <code>DirectoryIndex index.php</code>, dzięki czemu domyślne</li>
+</ul>
+<p><code>index.html</code> Pleska nie przykrywa aplikacji. EQL końcowy sprawdza root, health JSON, strict TLS i brak wewnętrznych nazw/URL.</p>
+<p>Aktualny audyt: 42 aktywne tickety, 21 z problemem wykonawczym, 28 nieobsługiwanych route, 10 jawnych blueprintów, 1 nierozwiązany placeholder i 0 przypadków <code>false-ready</code>. Liczby mają być traktowane jako kolejka refaktoryzacji, nie jako 28 nowych connectorów.</p>
+<h2>Granice connectorów i kolejność modularizacji</h2>
+<table>
+<thead><tr><th>Priorytet</th><th>Odpowiedzialność</th><th>Docelowy moduł</th><th>Decyzja</th></tr></thead>
+<tbody>
+<tr><td>P0</td><td>lifecycle ticketu, kolejki, respond/complete/reconcile</td><td>istniejący <code>urirun-connector-planfile</code></td><td>rozszerzyć o exact routes; usunąć bezpośrednie wywołania Planfile z usług</td></tr>
+<tr><td>P0</td><td>publiczny tunnel/ingress do host runtime</td><td>istniejący <code>urirun-connector-proxy</code></td><td>dodać profil zarządzanego outbound tunnel; nie mieszać z administracją Pleska</td></tr>
+<tr><td>P1</td><td>registry projektów i remediation</td><td><code>urirun-connector-subactor-governance</code></td><td>przenieść adaptery <code>project://...</code> z Control po ustabilizowaniu kontraktów</td></tr>
+<tr><td>P1</td><td>bezpieczne akcje Foundera i vault intake</td><td><code>urirun-connector-human-twin</code> + <code>urirun-connector-planfile</code></td><td>connector ma wykonywać bounded operation, UI i sesja pozostają w Control</td></tr>
+<tr><td>P1</td><td>research i lejek Connect</td><td>istniejące browser-control, linkedin, document, sheet, email</td><td>składać w process packs; nie tworzyć jednego dużego connectora marketingowego</td></tr>
+<tr><td>P2</td><td>walidacja AQL/EQL/OQL/TestQL</td><td>runtime + <code>urirun-connector-verify</code></td><td>utrzymać czyste walidatory bez dostępu do sekretów i mutacji</td></tr>
+</tbody></table>
+<p>Najpierw należy implementować route wykorzystywane przez gotowe tickety, a nie wydzielać kod tylko według katalogów. Każdy kandydat musi mieć stabilny URI, ograniczony kontrakt wejścia/wyjścia, właściciela, dry-run lub read-only, idempotencję, znormalizowany błąd i test przez Control → Bridge → URI node.</p>
+<h2>Pozostała decyzja dla PLF-592</h2>
+<p>Potrzebny jest jeden stabilny upstream HTTPS:</p>
+<ol>
+<li>zarządzany outbound tunnel z Lenovo do publicznego endpointu — preferowany,</li>
+</ol>
+<p>bo nie wymaga przekierowania portów routera; albo</p>
+<ol>
+<li>wdrożenie Control na stale osiągalnym VPS/Plesk i wskazanie tego originu.</li>
+</ol>
+<p>Po wskazaniu upstreamu connector wykona probe, wygeneruje hash planu i zatrzyma się przed apply do czasu jednorazowej zgody authority. Dopiero zielony test <code>/founder/action</code>, <code>/founder/form</code> i sesji Foundera pozwala zamknąć PLF-592.</p>
+</main>
+</body>
+</html>

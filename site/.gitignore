@@ -1,0 +1,19 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.secrets/
+data/
+test-results/
+coverage/
+.port-allocation.json
+.network-allocation.json
+*.log
+.DS_Store
+
+# koru runtime artefacts (generated)
+.planfile/.koru/
+.koru/
+.planfile/sprints/*.bak-*
+.planfile/.store.lock
+.planfile/**/*.fast.json

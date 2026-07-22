@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autonomy implementation status (evidence) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Autonomy implementation status (evidence)</h1>
+<p><strong>Date:</strong> 2026-07-18 <strong>Nearest milestone:</strong> Safe autonomous mutation in a <strong>mocked</strong> environment — not production <code>docs.subactor.com</code> deploy. <strong>Roadmap:</strong> <a href="../plans/autonomy-implementation-roadmap.html"><code>../plans/autonomy-implementation-roadmap.md</code></a> <strong>ADRs:</strong> <a href="./adr/README.html"><code>adr/README.md</code></a></p>
+<h2>CURRENT / TARGET / PLANNED / LEGACY</h2>
+<table>
+<thead><tr><th>Layer</th><th>CURRENT (implemented)</th><th>TARGET</th><th>PLANNED</th><th>LEGACY (still present)</th></tr></thead>
+<tbody>
+<tr><td>Intent</td><td>Pack registry + pack-first resolvers; derived phrases/LLM/step-catalog sync; <strong>PR10:</strong> <code>INTENT_PACK_DUAL_RUN=shadow</code> default; <strong>cold FALLBACK_PHRASES removed</strong> (fail closed)</td><td>Single pack SSOT end-to-end</td><td>Flip dual-run <code>off</code> after metrics; full Planfile auto from pack</td><td>Planfile ticket body hand-maintained (ids synced); dual-run shadow retained</td></tr>
+<tr><td>Policy</td><td><code>on_fail</code> / retry / timeout / <code>depends_on</code> vs <code>after</code>; <strong>rollback → release-rollback</strong> (PR7); <strong>verify → <code>applied_unverified</code></strong> (PR8)</td><td>Full lifecycle + <code>try_in_order</code></td><td>—</td><td>Default <code>halt</code></td></tr>
+<tr><td>Apply auth</td><td>Dual kill switch + signed apply grant + <code>plan_hash</code> + <strong>jti replay</strong> (PR5a–5c)</td><td>production verify DoD on live DNS</td><td>PR9 cutover (blocked)</td><td>Founder token ≠ grant (ADR-003)</td></tr>
+<tr><td>Transport</td><td><strong>SFTP readiness (PR6)</strong> + <strong>release paths (PR7):</strong> upload→verify→activate; symlink/pointer</td><td>Live SFTP apply on Plesk + docroot cutover</td><td>PR9</td><td><strong>Live urirun-node rebuilt 2026-07-18:</strong> paramiko OK, <code>production_publish_ready=true</code>; FTP ok; legacy direct <code>/httpdocs</code> sync still present</td></tr>
+<tr><td>DNS / verify</td><td><strong>PR8:</strong> publish-verify ladder; <strong>PR9 prep:</strong> runbook + desired A=<code>217.160.250.222</code></td><td>DNS→Plesk + live public DoD</td><td><strong>PR9 execute when G0–G6 green</strong></td><td><strong>GitHub Pages unhealthy LKG</strong>; origin subdomain+probe marker OK (<strong>needs_human:</strong> cert + DNS HITL)</td></tr>
+<tr><td>Vault</td><td>Lease via browser-agent vault in recipes; lease error mapping (401→<code>credential_expired</code>)</td><td>ADR-006 lease/revoke/audit</td><td>—</td><td><code>.env</code> tokens in lab</td></tr>
+</tbody></table>
+<h2>PR0–PR8 evidence table</h2>
+<p>Commands run 2026-07-18 (PR8):</p>
+<ul>
+<li><code>urirun-connector-plesk</code> <code>pytest tests/</code> → <strong>64/64 pass</strong> (verify ladder mocks + prior PR5–7)</li>
+<li><code>orchestrator</code> <code>node --test tests/pipeline.test.mjs</code> → <strong>24/24 pass</strong> (<code>applied_unverified</code> + rollback after stale fingerprint)</li>
+<li>No claim of live production publish / DNS cutover (PR9)</li>
+</ul>
+<table>
+<thead><tr><th>Unit</th><th>Component commit (sibling)</th><th>Platform pin</th><th>Tests</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><strong>PR1</strong> canonical paths + drift</td><td>ADR-007 docs; gate in platform</td><td><code>platform</code> <code>fbd0692</code>; drift script</td><td><code>check-component-drift.mjs</code> ok</td><td><strong>verified</strong></td></tr>
+<tr><td><strong>PR2</strong> intent pack registry</td><td><code>core</code> <code>d44fbb2</code> (pack-first intents earlier in history); packs in <code>platform/config/intent-packs/</code></td><td>core pin <code>d44fbb2</code>; agents <code>771053d</code></td><td>intent-pack-registry 6/6</td><td><strong>verified</strong> (dual-run retained)</td></tr>
+<tr><td><strong>PR3</strong> phrase/LLM/step dedupe</td><td><code>agents</code> <code>771053d</code>; sync script on platform</td><td>agents pin <code>771053d</code></td><td>sync <code>--check</code> ok; nlp-uri-pack 4/4</td><td><strong>partial</strong> — pack SSOT for resolvers + derived artifacts; <strong>Planfile imports still separate</strong>; dual-run until PR10</td></tr>
+<tr><td><strong>PR4</strong> recipe policy engine</td><td><code>orchestrator</code> (policy core + hardening)</td><td>orchestrator not a compose submodule (CLI package)</td><td>pipeline tests</td><td><strong>partial→hardened</strong> — ticket/rollback stages; compensation → PR7</td></tr>
+<tr><td><strong>PR5a</strong> immutable manifest</td><td><code>urirun-connector-plesk</code> <code>63a4fe1</code>; <code>connectors</code> <code>580ba39</code>; <code>testkit</code> <code>8675a5d</code></td><td>connectors/testkit pins updated</td><td>plesk pytest; testkit; smoke dry-run</td><td><strong>done</strong></td></tr>
+<tr><td><strong>PR5b</strong> signed apply grant</td><td>runtime <code>31d2cb6</code>; core <code>011e763</code>; connectors <code>a42dcfc</code>; plesk <code>66be5c5</code>; testkit <code>531170c</code></td><td>platform <code>385b24c</code></td><td>runtime 12; plesk 33; testkit 9</td><td><strong>done</strong> — grant-required apply</td></tr>
+<tr><td><strong>PR5c</strong> jti replay</td><td>runtime <code>c6ba013</code>; plesk <code>cecfb36</code>; core <code>79d3178</code>; connectors <code>c578cc2</code></td><td>platform <code>17740cc</code></td><td>runtime 17; plesk 34</td><td><strong>done</strong> — single-use jti</td></tr>
+<tr><td><strong>PR6</strong> SFTP/paramiko readiness</td><td>plesk <code>7d8ab5b</code>; connectors <code>cc4c4e5</code></td><td>platform <code>0ab75d1</code></td><td>plesk 42; Dockerfile test</td><td><strong>done</strong></td></tr>
+<tr><td><strong>PR7</strong> release upload/activate/rollback</td><td>plesk <code>d72e8d8</code>; orchestrator <code>2adf375</code>; connectors <code>d8895c9</code></td><td>platform <code>d302def</code></td><td>plesk 53; orchestrator 22</td><td><strong>done</strong></td></tr>
+<tr><td><strong>PR8</strong> DNS/TLS + fingerprint verify</td><td>plesk <code>530dda9</code>; orchestrator <code>9c687f5</code>; connectors <code>866cc96</code></td><td>platform <code>803aa45</code></td><td>plesk 64; orchestrator 24</td><td><strong>done</strong></td></tr>
+<tr><td><strong>PR9</strong> docs Pages→Plesk cutover</td><td>—</td><td>docs (this update)</td><td>formal origin release + marker; public Pages</td><td><strong>prep / blocked on G2/G6</strong> — G1 green; cert + DNS HITL; no DNS flip</td></tr>
+<tr><td><strong>PR10</strong> dual-run reduce</td><td>core <code>f679796</code>; agents <code>b8fa969</code></td><td>platform <code>f22763c</code></td><td>control 9/9; agents 5/5; sync <code>--check</code> OK</td><td><strong>in progress</strong> (shadow retained)</td></tr>
+</tbody></table>
+<p>Honesty notes:</p>
+<ul>
+<li><strong>PR3 ≠ full migration.</strong> Resolvers and derived YAML/JSON track packs; Planfile ticket YAML and some recipes remain hand-wired.</li>
+<li><strong>PR4+PR7+PR8:</strong> Retry/timeout/<code>on_fail</code> work; verify failures → <code>applied_unverified</code>; <code>on_fail:rollback</code> → <code>rolled_back</code> / <code>rollback_failed</code>. Never fake <code>ok</code> / <code>completed</code> on stale fingerprint.</li>
+<li><strong>PR5c ≠ DNS cutover.</strong> Replay-safe grants in mock.</li>
+<li><strong>PR6 ≠ live Plesk publish.</strong> Image + connector readiness.</li>
+<li><strong>PR7 ≠ docs.subactor.com cutover.</strong> Release APIs + orchestrator compensation in mock/lab.</li>
+<li><strong>PR8 ≠ production DNS switch.</strong> Capability + mocked ladder + optional origin/<code>curl --resolve</code>. Staging hostname recommendation: <code>docs-stage.subactor.com</code> (infra not required). <strong>Public docs may still be GitHub Pages.</strong></li>
+</ul>
+<h2>Fail-closed apply gates (CURRENT)</h2>
+<table>
+<thead><tr><th>Gate</th><th>Env / artifact</th><th>Deny code</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Master kill</td><td><code>AUTONOMY_MUTATIONS_ENABLED≠1</code></td><td><code>autonomy_mutations_disabled</code></td><td><strong>CURRENT (PR5b)</strong></td></tr>
+<tr><td>Domain kill</td><td><code>PLESK_SYNC_APPLY≠1</code></td><td><code>plesk_sync_apply_required</code></td><td><strong>CURRENT</strong></td></tr>
+<tr><td>Grant</td><td>missing / bad sig / expired / wrong binding</td><td><code>apply_grant_*</code></td><td><strong>CURRENT (PR5b)</strong></td></tr>
+<tr><td>Manifest</td><td>apply <code>plan_hash</code> ≠ recomputed dry-run</td><td><code>plan_hash_mismatch</code></td><td><strong>CURRENT (PR5a)</strong></td></tr>
+<tr><td>Replay</td><td>reused <code>jti</code></td><td><code>apply_grant_replay</code></td><td><strong>CURRENT (PR5c)</strong></td></tr>
+<tr><td>SFTP required</td><td>no paramiko / FTP-only without fallback</td><td><code>capability_unavailable</code></td><td><strong>CURRENT (PR6)</strong></td></tr>
+<tr><td>Publish verify</td><td>DNS/TLS/HTTPS/fingerprint mismatch when enabled</td><td><code>dns_mismatch</code> / <code>tls_san_mismatch</code> / <code>fingerprint_stale</code> → stage <code>applied_unverified</code></td><td><strong>CURRENT (PR8)</strong></td></tr>
+</tbody></table>
+<h3>Founder / admin grant path</h3>
+<p>After dry-run: <code>POST /api/apply-grants</code> (scope <code>plans:approve</code>) with <code>run_id</code>, <code>plan_hash</code>, <code>artifact_sha256</code>, <code>target</code>, pack, <code>risk_class</code>. HMAC: <code>APPLY_GRANT_HMAC_SECRET</code> (preferred) or <code>TOKEN_PEPPER</code>; rotation via <code>APPLY_GRANT_HMAC_SECRET_NEXT</code>. Pass returned <code>grant</code> as <code>apply_grant</code> on mutate. Each <code>jti</code> is single-use (replay store; optional <code>APPLY_GRANT_JTI_STORE</code> file). Secrets never in tickets/logs.</p>
+<h3>Transport policy (PR6) + release (PR7) + verify (PR8)</h3>
+<ul>
+<li>Doctor: <code>capabilities.sftp|ftp|release_activation|rollback|publish_verify|dns_preflight|tls_san_check|content_fingerprint</code>, <code>production_publish_ready</code>, timeouts 15/120/180.</li>
+<li>FTP fallback only when <code>PLESK_SYNC_ALLOW_FTP_FALLBACK=1</code>.</li>
+<li>Publish packs list <code>required_capabilities: [&quot;plesk.site.sync&quot;, &quot;plesk.transport.sftp&quot;]</code>.</li>
+<li>Release: <code>PLESK_RELEASE_ACTIVATION=auto|symlink|pointer</code> (default <code>auto</code>).</li>
+<li>Verify URI: <code>plesk://host/site/command/publish-verify</code> (+ <code>release-verify</code> with <code>verify_origin</code>/<code>verify_public</code>).</li>
+<li>Marker: <code>/__subactor_release.json</code> (<code>Cache-Control: no-store</code>; fields <code>release_id</code>, <code>artifact_sha256</code>, <code>source_commit</code>, <code>built_at</code>, <code>pack_version</code>).</li>
+<li>Desired DNS doc: <code>docs/deployment/dns-desired-state.json</code> (staging note <code>docs-stage.subactor.com</code>).</li>
+</ul>
+<h2>PR5–PR8 split</h2>
+<ol>
+<li>ADR-003 <strong>Accepted</strong> (crypto/TTL/replay/rotation/fail-closed).</li>
+<li><strong>PR5a–5c done:</strong> manifest, grant, jti replay.</li>
+<li><strong>PR6 done:</strong> paramiko in image, capability readiness, structured errors, SFTP-required prod policy.</li>
+<li><strong>PR7 done:</strong> release upload / activate / rollback + orchestrator compensation.</li>
+<li><strong>PR8 done:</strong> DNS/TLS preflight + public content fingerprint verify (mocked; no cutover claim).</li>
+<li><strong>PR9 prep:</strong> cutover runbook + desired A=<code>217.160.250.222</code> + <strong>formal origin release</strong> — <strong>no production DNS flip</strong> (G2/G6 red; G1 green).</li>
+<li><strong>PR10 in progress:</strong> <code>INTENT_PACK_DUAL_RUN=shadow|off|on</code> (default shadow); cold FALLBACK_PHRASES removed; dual-run shadow kept until metrics OK.</li>
+</ol>
+<p>Do <strong>not</strong> treat GitHub Pages as safe DNS/content rollback without noting it is an <strong>unhealthy</strong> last_known_good until Plesk cutover + verify (ADR-002/005).</p>
+<h3>PR9 dry preflight (public + origin, 2026-07-18 continuation #5)</h3>
+<ul>
+<li>CNAME <code>docs.subactor.com</code> → <code>subactor.github.io</code> (Pages) — <strong>unchanged; no cutover</strong>.</li>
+<li>TLS SAN public = <code>*.github.io</code> (does <strong>not</strong> include <code>docs.subactor.com</code>).</li>
+<li>Public fingerprint fetch fails TLS verify — expected <code>applied_unverified</code> until cutover.</li>
+<li><strong><code>docs-stage.subactor.com</code>:</strong> public A=<code>217.160.250.222</code>, LE TLS green, HTTPS <code>/</code> 200; <code>/__subactor_release.json</code> still <strong>404</strong> (rehearsal release not uploaded).</li>
+<li>Origin <code>--resolve</code> <code>docs.subactor.com</code> → marker <strong>200</strong> <code>rel_20260718T085927Z_a7f1328e</code> + LE domain cert.</li>
+<li><strong>NL lifecycle:</strong> intent/propose/execute surface <code>status</code> (<code>preflight_passed</code> / <code>proposed</code> / <code>authorized</code> / <code>capability_unavailable</code> / <code>applied_unverified</code>) — not bare boolean.</li>
+<li><strong>needs_human:</strong> Cloudflare API (or panel) for production DNS A cutover; explicit HITL (G6). No token in platform env — do not silent-flip.</li>
+<li>Runbook: <a href="../deployment/PR9-docs-cutover-runbook.html"><code>../deployment/PR9-docs-cutover-runbook.md</code></a>.</li>
+<li>PR10 notes: <a href="../deployment/PR10-legacy-resolver-cleanup.html"><code>../deployment/PR10-legacy-resolver-cleanup.md</code></a>.</li>
+</ul>
+<h2>CLI autonomy (founder ask)</h2>
+<p><strong>CURRENT (2026-07-18):</strong> <code>subactor ask &quot;…docs-stage…&quot; --execute --yes</code> completes reversible apply without permanent kill switches:</p>
+<ol>
+<li>pack-first + capability preflight</li>
+<li>dry-run (publish-verify skipped on dry-run)</li>
+<li>session mutate lease on urirun-node (TTL)</li>
+<li>signed apply-grant</li>
+<li>apply → <code>applied</code>; lease cleared</li>
+</ol>
+<p>docs-stage docroot bound to <code>/docs-stage.subactor.com</code> (or <code>…/current</code>). Production <code>docs.subactor.com</code> public DNS cutover remains HITL (Pages → Plesk).</p>
+</main>
+</body>
+</html>

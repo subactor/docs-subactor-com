@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Proposed urirun-connectors — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Proposed urirun-connectors</h1>
+<p>Which connectors to build next for the <a href="https://github.com/orgs/urirun-connectors/repositories">urirun-connectors org</a>, grounded in what Subactor actually needs but does not yet have. The org already has 74 connectors — including <code>urirun-connector-plesk</code> (REST v2), <code>urirun-connector-namecheap-dns</code>, <code>urirun-connector-email</code>, and <code>urirun-connector-domain-monitor</code> — so these are the confirmed gaps, not duplicates.</p>
+<p>Each entry: the concrete need, the URI surface, whether secrets are involved, and the priority.</p>
+<h2>P0 — <code>urirun-connector-cloudflare-dns</code></h2>
+<p><strong>Why now.</strong> The docs cutover runbook (<code>PR9-docs-cutover-runbook.md</code>) is <strong>blocked</strong> on exactly this: *&quot;G2 Certificate plan — RED: no Cloudflare API for DNS-01&quot;* and *&quot;G3 DNS provider readiness — YELLOW: Cloudflare NS known; no API token&quot;*. The zone lives on Cloudflare, but the org only has a Namecheap DNS connector. This is the connector standing between the current state and a valid certificate on <code>docs.subactor.com</code> — which today serves a <code>*.github.io</code> cert because DNS still points at GitHub Pages.</p>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>URI surface</td><td><code>dns://cloudflare/zone/query/records</code>, <code>dns://cloudflare/record/command/upsert</code>, <code>dns://cloudflare/record/command/delete</code></td></tr>
+<tr><td>Secrets</td><td>Cloudflare API token (scoped to the zone, DNS edit) — vault-backed</td></tr>
+<tr><td>Read-only default</td><td><code>query/records</code> is R0; <code>upsert</code>/<code>delete</code> are R2 (reversible, HITL)</td></tr>
+<tr><td>Unblocks</td><td>DNS-01 TXT records for ACME, the A/AAAA flip from GitHub Pages to Plesk origin</td></tr>
+</tbody></table>
+<h2>P0 — <code>urirun-connector-acme</code></h2>
+<p><strong>Why now.</strong> Pairs with the DNS connector to close the same runbook blocker: a certificate. G2 is RED until a cert is issued; the chosen path is *DNS-01 before cutover*. An ACME connector that requests a Let's Encrypt cert via a DNS-01 challenge (writing the TXT through <code>cloudflare-dns</code>, then collecting the cert) turns cert issuance from a manual HITL step into a governed URI process.</p>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>URI surface</td><td><code>acme://letsencrypt/cert/command/request</code>, <code>acme://letsencrypt/cert/query/status</code></td></tr>
+<tr><td>Secrets</td><td>ACME account key — vault-backed; no long-lived secret in the recipe</td></tr>
+<tr><td>Read-only default</td><td><code>query/status</code> is R0; <code>command/request</code> is R3 (issues a real cert) — HITL</td></tr>
+<tr><td>Composition</td><td>depends on a DNS connector for the DNS-01 TXT; provider-agnostic challenge</td></tr>
+</tbody></table>
+<h2>P1 — <code>urirun-connector-plesk-topology</code></h2>
+<p><strong>Why.</strong> Already built and manifested in this repo (<code>connectors/services/bridge/src/plesk-topology/connector.manifest.json</code>): the docroot rule, live www_root observation over the XML API, and the declared→rule→observed reconciliation that refuses publishing a subdomain over the main site's <code>/httpdocs</code>. Two dependency-free, secrets-free modules (<code>site-topology.mjs</code>, <code>plesk-docroot-observe.mjs</code>) that import only node builtins — they lift out cleanly. This extends the existing <code>plesk</code> connector rather than competing with it: <code>plesk</code> writes, <code>plesk-topology</code> decides <em>where</em>.</p>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>URI surface</td><td><code>plesk://host/site/query/docroot</code> → <code>plesk.docroot.decision/v1</code> fact</td></tr>
+<tr><td>Secrets</td><td>none of its own — the XML API credential is injected by the caller</td></tr>
+<tr><td>Read-only default</td><td>entirely R0 (query + reconcile); it never writes</td></tr>
+<tr><td>Status</td><td>code + 22 tests exist; extraction is packaging, not new work</td></tr>
+</tbody></table>
+<h2>P2 — <code>urirun-connector-site-generator</code></h2>
+<p><strong>Why.</strong> Subactor renders markdown to a publishable site (the docs site, the <code>build-docs.mjs</code> renderer, the PHP <code>PageRenderer</code>/<code>MarkdownRenderer</code>). Exposing &quot;render this source tree to a deployable bundle&quot; as a URI process would let a publish recipe generate <em>and</em> sync in one governed flow, instead of a separate build step. Lower priority because a plain folder sync already works.</p>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>URI surface</td><td><code>site://generator/bundle/command/render</code> → files + manifest</td></tr>
+<tr><td>Secrets</td><td>none (pure transform)</td></tr>
+<tr><td>Read-only default</td><td>R1 (produces artifacts, writes nothing external)</td></tr>
+</tbody></table>
+<hr />
+<h2>Priority summary</h2>
+<table>
+<thead><tr><th>Connector</th><th>Priority</th><th>Unblocks</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>cloudflare-dns</code></td><td>P0</td><td>cert issuance, DNS cutover</td><td>to build</td></tr>
+<tr><td><code>acme</code></td><td>P0</td><td>valid cert on docs/www</td><td>to build (needs DNS connector)</td></tr>
+<tr><td><code>plesk-topology</code></td><td>P1</td><td>safe docroot targeting</td><td><strong>built, ready to extract</strong></td></tr>
+<tr><td><code>site-generator</code></td><td>P2</td><td>render+publish in one flow</td><td>to build</td></tr>
+</tbody></table>
+<p>The two P0s are the same story: <code>docs.subactor.com</code> serves the wrong certificate because the cert was never issued, because there is no Cloudflare DNS-01 path. Building <code>cloudflare-dns</code> + <code>acme</code> closes it.</p>
+</main>
+</body>
+</html>

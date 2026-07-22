@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR — indeks decyzji autonomii — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../../index.html">subactor/docs</a></nav>
+<h1>ADR — indeks decyzji autonomii</h1>
+<p><strong>Cel:</strong> krótkie ADR-y zaakceptowane jako SSOT decyzji (Faza 0 + luki grant/rollback/vault). <strong>Pełna rekomendacja:</strong> <a href="../autonomy-recommended-solution.html"><code>../autonomy-recommended-solution.md</code></a> <strong>Status implementacji / evidence:</strong> <a href="../autonomy-implementation-status.html"><code>../autonomy-implementation-status.md</code></a> <strong>Roadmapa:</strong> <a href="../../plans/autonomy-implementation-roadmap.html"><code>../../plans/autonomy-implementation-roadmap.md</code></a> <strong>Baseline:</strong> commit docs <code>5894906</code> (status ops + pytania otwarte).</p>
+<table>
+<thead><tr><th>ADR</th><th>Temat</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><a href="./001-autonomy-scope.html">001</a></td><td>Zakres autonomii (katalog zdolności)</td><td><strong>Accepted</strong></td></tr>
+<tr><td><a href="./002-dns-ssot.html">002</a></td><td>DNS jako SSOT</td><td><strong>Accepted</strong></td></tr>
+<tr><td><a href="./003-approval-hitl-model.html">003</a></td><td>Apply / HITL + <strong>grant crypto spec</strong></td><td><strong>Accepted</strong></td></tr>
+<tr><td><a href="./004-publish-definition-of-done.html">004</a></td><td>Verify / DoD publikacji</td><td><strong>Accepted</strong></td></tr>
+<tr><td><a href="./005-rollback.html">005</a></td><td>Rollback i failure semantics</td><td><strong>Accepted</strong></td></tr>
+<tr><td><a href="./006-secrets-ownership.html">006</a></td><td>Ownership sekretów / vault</td><td><strong>Accepted</strong></td></tr>
+<tr><td><a href="./007-canonical-component-paths.html">007</a></td><td>Kanoniczne ścieżki vs <code>platform/components</code></td><td><strong>Accepted</strong></td></tr>
+</tbody></table>
+<p>Akceptacja ADR-001–006 zamyka odpowiadające pytania w <a href="../autonomy-ops-status-and-open-questions.html"><code>../autonomy-ops-status-and-open-questions.md</code></a> §5 (sekcja governance/DNS/verify/secrets/scope/rollback).</p>
+<p><strong>Uwaga:</strong> Accepted ≠ zaimplementowane end-to-end. Evidence PR1–PR4: <a href="../autonomy-implementation-status.html"><code>../autonomy-implementation-status.md</code></a>.</p>
+</main>
+</body>
+</html>

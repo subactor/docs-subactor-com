@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Operations — 2026-07-14 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Operations — 2026-07-14</h1>
+<p>2 operation(s): ❌ 2 failed</p>
+<h3>❌ 19:35:32 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrl1wsbw_cb46c047b2</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>failed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved e2e-hr</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>Result</td><td>;</td></tr>
+</tbody></table>
+<h3>❌ 20:30:33 — Zdalny onboarding wielokanałowy</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>Plan</td><td><code>plan_mrl3vji9_774dfa7f5f</code></td></tr>
+<tr><td>Model</td><td><code>onboarding-communications.pl.aql</code></td></tr>
+<tr><td>Target</td><td>—</td></tr>
+<tr><td>Status</td><td><strong>failed</strong></td></tr>
+<tr><td>Lifecycle</td><td>created → approved → executed</td></tr>
+<tr><td>By</td><td>E2E Organization operator → approved E2E Organization operator</td></tr>
+<tr><td>Steps</td><td><code>create_plesk_mailbox</code>, <code>send_welcome_email</code>, <code>notify_manager_email</code>, <code>notify_hr_slack</code>, <code>notify_hr_teams</code>, <code>create_intro_calendar</code>, <code>create_remote_access_task</code></td></tr>
+<tr><td>OQL hash</td><td><code>4eea00ecddae311c…</code></td></tr>
+<tr><td>Result</td><td>;</td></tr>
+</tbody></table>
+</main>
+</body>
+</html>

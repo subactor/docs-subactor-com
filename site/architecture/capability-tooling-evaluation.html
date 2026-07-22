@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capability tooling evaluation (touri / uri2verify / TestQL / dockfra / hypervisor) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Capability tooling evaluation (touri / uri2verify / TestQL / dockfra / hypervisor)</h1>
+<p><strong>Date:</strong> 2026-07-18 <strong>Goal gap:</strong> pack <code>required_capabilities</code> ↔ connector doctor readiness (Subactor / Plesk) <strong>Scope:</strong> smoke-test candidate packages; apply only what closes the gap; minimal refactors.</p>
+<h2>Summary</h2>
+<table>
+<thead><tr><th>Package</th><th>Smoke result</th><th>Verdict for gap</th><th>Applied?</th></tr></thead>
+<tbody>
+<tr><td><strong>tellmesh/touri</strong></td><td>Core import + <code>validate</code>/<code>list</code> OK; 14 pass / voice+markpact failures unrelated</td><td><strong>Helpful</strong> — capability id + <code>.uri.capability.yaml</code> manifest shape</td><td>Yes (pattern + local manifests)</td></tr>
+<tr><td><strong>tellmesh/uri2verify</strong></td><td>Unit tests pass; <code>capability-plan</code> was broken without hypervisor</td><td><strong>Helpful</strong> — capability verification plan builder</td><td>Yes (touri fallback + used as design cue)</td></tr>
+<tr><td><strong>semcod / TestQL</strong></td><td>Installed (<code>1.2.60</code>); <code>testql analyze</code> on platform OK</td><td><strong>Partial</strong> — good scenario orchestrator, not SSOT for pack⊆doctor</td><td>Thin wrapper scenario only</td></tr>
+<tr><td><strong>wronai/dockfra doctor</strong></td><td>CLI runs; reports wizard offline without dockfra stack</td><td><strong>Not useful</strong> for Plesk capability ⊆ gate</td><td>No</td></tr>
+<tr><td><strong>wronai/hypervisor</strong></td><td>Examples = touri capability registry copy; package not importable without install</td><td><strong>Partial</strong> — contract-registry pattern; too heavy as dependency</td><td>No (uri2verify still prefers it when present)</td></tr>
+<tr><td><strong>wronai/vdisplay</strong></td><td>Present; display orchestration</td><td><strong>Not useful</strong> for this gap</td><td>No</td></tr>
+</tbody></table>
+<h2>Test results (detail)</h2>
+<h3>touri (<code>/home/tom/github/tellmesh/touri</code>)</h3>
+<ul>
+<li><code>pytest</code> (ignoring markpact): core registry/validate path works; voice optional extras fail without backends.</li>
+<li>CLI: <code>touri validate</code> / <code>touri list</code> on <code>examples/20_touri_capabilities</code> succeed.</li>
+<li>Takeaway: <strong>capability ids + YAML manifests</strong> are the right vocabulary for pack <code>required_capabilities</code>.</li>
+</ul>
+<h3>uri2verify (<code>/home/tom/github/tellmesh/uri2verify</code>)</h3>
+<ul>
+<li>Data-quality / replay / result-check tests: <strong>pass</strong>.</li>
+<li>Before refactor: <code>uri2verify capability-plan</code> → <code>ModuleNotFoundError: hypervisor.contract_registry</code>.</li>
+<li>After refactor: falls back to <strong>touri</strong> <code>*.uri.capability.yaml</code> registries; smoke OK on touri examples and on Subactor <code>platform/config/connector-capabilities/</code>.</li>
+<li>New regression: <code>tests/test_touri_capability_plan.py</code>.</li>
+</ul>
+<h3>TestQL</h3>
+<ul>
+<li>Installable from local oqlos tree; CLI works.</li>
+<li>Thin wrapper: <code>platform/components/testkit/tests/testql/capability-preflight.testql.toon.yaml</code> shells the preflight CLI (fixture green + red doctor → exit 1).</li>
+<li>Ownership (unchanged): TestQL may <strong>call</strong> the preflight CLI and assert exit codes; it must not own capability SSOT (<a href="./testing-intents-and-deploy-results.html">testing-intents-and-deploy-results.md</a>).</li>
+</ul>
+<h3>dockfra doctor</h3>
+<ul>
+<li><code>dockfra cli doctor</code> → wizard offline (expected without running dockfra root).</li>
+<li>Diagnoses Docker Compose wizard health, not connector capability readiness → <strong>out of scope</strong>.</li>
+</ul>
+<h3>hypervisor</h3>
+<ul>
+<li><code>examples/20_touri_capabilities</code> mirrors touri manifests (same pattern).</li>
+<li><code>pytest</code> collection fails without editable install (<code>No module named 'hypervisor'</code>).</li>
+<li>Useful as optional backend for uri2verify when <code>contracts/</code> exists; not required for Subactor preflight.</li>
+</ul>
+<h2>Integration shipped in Subactor</h2>
+<table>
+<thead><tr><th>Artefact</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>platform/config/connector-capabilities/catalog.v1.json</code></td><td>Pack id ↔ doctor keys + <code>aql.oql</code> / <code>aql.uri_processes</code></td></tr>
+<tr><td><code>platform/config/connector-capabilities/plesk.doctor.fixture.json</code></td><td>CI fixture mirroring live short-key + <code>available</code> shape</td></tr>
+<tr><td><code>platform/config/connector-capabilities/*.uri.capability.yaml</code></td><td>Touri-style docs (sync / sftp / tls / ssl_ensure)</td></tr>
+<tr><td><code>platform/config/connector-capabilities/preflight.mjs</code></td><td>⊆ doctor library + AQL ⊆ check + live fetch</td></tr>
+<tr><td><code>platform/scripts/capability-preflight.mjs</code></td><td>CLI (<code>--live</code>, <code>--aql-only</code>, <code>capability_unavailable</code> / <code>capability_not_in_aql</code>)</td></tr>
+<tr><td><code>platform/test/capability-preflight.test.mjs</code></td><td>Unit/regression (doctor + AQL)</td></tr>
+<tr><td><code>core/.../capability-preflight-gate.mjs</code></td><td>Fail-closed gate for control</td></tr>
+<tr><td><code>core/.../routes/llm.mjs</code> + <code>plans.mjs</code> + <code>apply-grants.mjs</code></td><td>Deny before NL success / propose / grant issue</td></tr>
+<tr><td><code>platform/bin/subactor</code></td><td>Surfaces <code>capability_unavailable</code> / <code>preflight_failed</code> on <code>ask</code></td></tr>
+</tbody></table>
+<pre><code class="language-bash"># Fixture (CI) — doctor ⊆ + AQL ⊆
+node platform/scripts/capability-preflight.mjs --json
+node platform/scripts/capability-preflight.mjs --aql-only --json
+node platform/scripts/capability-preflight.mjs --require-publish-ready
+
+# Live doctor from running urirun-node
+URIRUN_NODE_TOKEN=$SUBACTOR_ADMIN_TOKEN \
+  node platform/scripts/capability-preflight.mjs --live --via urirun --urirun-url http://127.0.0.1:18765 --json
+
+# Live via bridge (in-compose)
+BRIDGE_INTERNAL_URL=http://hr-bridge:8081 BRIDGE_SERVICE_TOKEN=… \
+  node platform/scripts/capability-preflight.mjs --live --via bridge --json</code></pre>
+<p><strong>Live doctor URI:</strong> <code>plesk://host/doctor/query/report</code> Shape: short keys + <code>{available|boolean}</code> + <code>production_publish_ready</code>. Pack ids use catalog aliases; <code>plesk.site.sync</code> is derived when SFTP is ready.</p>
+<p><strong>Packs (docs/www)</strong> declare: <code>plesk.site.sync</code>, <code>plesk.transport.sftp</code>, <code>plesk.tls_san_check</code>, <code>plesk.ssl_ensure</code>. <code>letsencrypt</code> stays <strong>not</strong> required — never claim public LE success.</p>
+<p><strong>Control env:</strong> <code>CAPABILITY_PREFLIGHT=1</code> (default), <code>CAPABILITY_PREFLIGHT_LIVE=1</code> (bridge/urirun when configured; else fixture). Inject <code>CAPABILITY_DOCTOR_PATH</code> or test <code>doctorReport</code> for red-path smoke.</p>
+<h2>What was refactored</h2>
+<ol>
+<li><strong>uri2verify</strong> — <code>capability-plan</code> CLI: hypervisor when <code>contracts/</code> present, else <strong>touri registry</strong>.</li>
+<li><strong>platform</strong> — live doctor normalize (<code>available</code>↔<code>ready</code>), CLI <code>--live</code>, pack/catalog SSL+SFTP alignment.</li>
+<li><strong>core/control</strong> — fail-closed on <code>/api/llm/intent</code> + <code>/api/plans/propose-from-intent</code>.</li>
+</ol>
+<p>No dockfra / vdisplay / hypervisor wholesale changes. <strong>No production DNS flip / no LE public success claim.</strong></p>
+<h2>Test table (this continuation)</h2>
+<table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Unit fixture ⊆ packs (doctor)</td><td>PASS</td></tr>
+<tr><td>Unit live-shape normalize (<code>available</code> + short keys)</td><td>PASS</td></tr>
+<tr><td>Unit red sftp → <code>capability_unavailable</code></td><td>PASS</td></tr>
+<tr><td>Unit pack caps ⊆ AQL (catalog + contracts)</td><td>PASS</td></tr>
+<tr><td>Unit unmapped / URI-not-allowed → <code>capability_not_in_aql</code></td><td>PASS</td></tr>
+<tr><td>CLI fixture exit 0 (+ <code>aql_ok</code>) / red exit 1</td><td>PASS</td></tr>
+<tr><td>CLI <code>--aql-only</code> exit 0</td><td>PASS</td></tr>
+<tr><td>Gate mocked red → deny (<code>model_name: null</code>)</td><td>PASS</td></tr>
+<tr><td><code>POST /api/apply-grants</code> red doctor → 409 deny</td><td>PASS</td></tr>
+<tr><td>Live <code>--via urirun</code> against stack</td><td>PASS when stack up (not claimed in offline CI)</td></tr>
+<tr><td>TestQL thin wrapper</td><td>Shells CLI</td></tr>
+<tr><td>Make / <code>test:meta</code> runs CLI doctor+AQL</td><td>Wired</td></tr>
+</tbody></table>
+<h2>Closed in this continuation</h2>
+<ol>
+<li><strong>AQL ⊆ CI</strong> — catalog <code>aql.oql</code> / <code>aql.uri_processes</code> + actor <code>*.contract.aql</code> allows; CLI <code>--aql-only</code> / default fixture run fails on <code>capability_not_in_aql</code>. Wired into <code>make test-capability-preflight</code> / <code>npm run test:meta</code>.</li>
+<li><strong>Apply-grants defense in depth</strong> — <code>POST /api/apply-grants</code> denies when pack preflight would be red (<code>capability_unavailable</code>), audits <code>apply_grant.denied_capability</code>.</li>
+</ol>
+<h2>Remaining gaps</h2>
+<ol>
+<li><strong>touri voice/markpact flakes</strong> — unrelated; leave for tellmesh maintainers.</li>
+<li><strong>PR9 DNS cutover / public LE</strong> — still blocked; do not claim success.</li>
+<li><strong>logo pack</strong> — registered (pack + AQL + step-catalog); origin dry-run/apply still gated — <strong>no DNS flip</strong>.</li>
+</ol>
+<h2>Polish one-liner</h2>
+<p>Pack caps ⊆ live doctor <strong>and</strong> ⊆ AQL (catalog→URI/OQL + contract allows); control ask/propose/<code>apply-grants</code> fail-closed on red (<code>capability_unavailable</code> / <code>capability_not_in_aql</code>) — no DNS flip, no LE public success claim.</p>
+</main>
+</body>
+</html>

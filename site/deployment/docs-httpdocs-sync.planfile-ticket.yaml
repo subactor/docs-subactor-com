@@ -1,0 +1,89 @@
+# Versioned copy of umbrella planfile import for docs→httpdocs sync.
+# Import on umbrella: planfile ticket import --source urirun-recipe --from .planfile/imports/docs-httpdocs-sync.yaml
+# Canonical urirun recipe: docs/deployment/docs-httpdocs-sync.urirun.json
+tickets:
+  - name: Sync docs → docs.subactor.com httpdocs
+    description: |
+      Dry-run first via plesk://host/site/command/sync (recipe docs-httpdocs-sync.urirun.json),
+      then apply only when PLESK_SYNC_APPLY=1 is set on the urirun-node host.
+
+      Situation defaults: source_dir=/home/tom/github/subactor/docs, host=prototypowanie.pl, domain=docs.subactor.com.
+      Do not apply to production unless dry-run is green and PLESK_SYNC_APPLY is explicitly set.
+    priority: high
+    labels:
+      - plesk
+      - docs-httpdocs-sync
+      - urirun-recipe
+      - llm-ready
+    files:
+      - docs/deployment/docs-httpdocs-sync.urirun.json
+      - docs/plans/docs-subactor-com-publish.md
+      - contracts/models/docs-httpdocs-sync.pl.aql
+      - agents/nlp-uri-phrases.yaml
+    executor:
+      kind: llm
+      mode: interactive
+    execution:
+      queue: default
+      state: ready
+      attempt: 0
+      max_attempts: 3
+    inputs:
+      env_keys:
+        - PLESK_SYNC_APPLY
+      uri_processes:
+        - id: docs-httpdocs-methods
+          name: Detect SFTP/FTP deployment transports
+          actor: bot:project-operator-bot
+          uri: plesk://host/site/query/methods
+          payload:
+            host: prototypowanie.pl
+          depends_on: []
+          human_approval: false
+        - id: docs-httpdocs-sync-dry-run
+          name: Dry-run docs → httpdocs sync plan
+          actor: bot:project-operator-bot
+          uri: plesk://host/site/command/sync
+          payload:
+            source_dir: /home/tom/github/subactor/docs
+            remote_path: /httpdocs
+            host: prototypowanie.pl
+            domain: docs.subactor.com
+            apply: false
+          depends_on:
+            - docs-httpdocs-methods
+          human_approval: false
+        - id: docs-httpdocs-sync-apply
+          name: Apply docs → httpdocs sync (requires PLESK_SYNC_APPLY=1)
+          actor: bot:project-operator-bot
+          uri: plesk://host/site/command/sync
+          payload:
+            source_dir: /home/tom/github/subactor/docs
+            remote_path: /httpdocs
+            host: prototypowanie.pl
+            domain: docs.subactor.com
+            apply: true
+          depends_on:
+            - docs-httpdocs-sync-dry-run
+          human_approval: false
+        - id: docs-publish-verify
+          name: ADR-004 public/origin fingerprint verify (enable when origin ready)
+          actor: bot:project-operator-bot
+          uri: plesk://host/site/command/publish-verify
+          payload:
+            hostname: docs.subactor.com
+            release_id: ${release_id}
+            artifact_sha256: ${artifact_sha256}
+            source_commit: ${source_commit}
+            pack_version: "1"
+            origin_ip: "217.160.250.222"
+            verify_origin: false
+            verify_public: false
+            check_dns: false
+            check_tls: false
+          depends_on:
+            - docs-httpdocs-sync-apply
+          required: false
+          on_fail: rollback
+          human_approval: false
+          verify: true

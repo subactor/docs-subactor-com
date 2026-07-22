@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PR10 — legacy resolver / dual-run cleanup — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>PR10 — legacy resolver / dual-run cleanup</h1>
+<p><strong>Status:</strong> in progress (2026-07-18) — cold FALLBACK_PHRASES removed; dual-run stays <strong>shadow</strong> until metrics OK.</p>
+<blockquote><strong>Default stays <code>INTENT_PACK_DUAL_RUN=shadow</code>.</strong> Do not flip to <code>off</code> in CI/prod until shadow compare stays clean. Pack-only routes (e.g. logo) are not legacy drift (<code>baseline: pack_only</code>).</blockquote>
+<p><strong>Why now:</strong> PR9 production DNS cutover is blocked (G2 cert path for production hostname + G6 HITL). Staging <code>docs-stage.subactor.com</code> already A→Plesk with LE; production <code>docs.subactor.com</code> still Pages.</p>
+<h2>Goal</h2>
+<p>Single pack SSOT end-to-end for docs/www intent resolution:</p>
+<ol>
+<li>Pack registry resolves phrases (SSOT).</li>
+<li>Docs/www adapters <strong>fail closed</strong> when packs dir is missing (no cold phrase list).</li>
+<li>Dual-run compare remains default <strong>shadow</strong> (metrics / warn); not removed yet.</li>
+</ol>
+<h2><code>INTENT_PACK_DUAL_RUN</code></h2>
+<table>
+<thead><tr><th>Value</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td><code>shadow</code> (<strong>default</strong>)</td><td>Pack-first; still compare legacy↔pack; attach <code>pack_compare.mode=shadow</code> (metrics / warn on mismatch).</td></tr>
+<tr><td><code>on</code> / <code>enforce</code></td><td>Previous behaviour: always compare when registry loads.</td></tr>
+<tr><td><code>off</code> / <code>pack-only</code></td><td>When pack hits: skip compare and (control) skip legacy path; <code>pack_compare.skipped=true</code>.</td></tr>
+</tbody></table>
+<p>Set on <strong>hr-control</strong> / agents runtimes, e.g. <code>INTENT_PACK_DUAL_RUN=shadow</code>.</p>
+<h2>Done in this slice</h2>
+<ul>
+<li>[x] Control bridge honors mode (<code>core</code> <code>intent-pack-bridge.mjs</code> + <code>routes/llm.mjs</code>).</li>
+<li>[x] Agents adapter honors mode (<code>agents</code> <code>intent-pack-adapter.mjs</code>).</li>
+<li>[x] Regression tests for <code>off</code> + default <code>shadow</code> / <code>on</code>.</li>
+<li>[x] <strong>Remove cold FALLBACK_PHRASES</strong> from docs/www adapters (fail closed if packs unmounted).</li>
+<li>[x] Step-catalog + planfile ticket process ids aligned with docs recipe (incl. <code>docs-publish-verify</code>).</li>
+<li>[x] Sync <code>--check</code> verifies planfile ticket uri_processes ids vs recipe.</li>
+<li>[x] Status docs updated honestly (PR9 still blocked; no DNS flip).</li>
+</ul>
+<h2>Not done yet</h2>
+<ul>
+<li>[ ] Delete YAML dual-run path entirely from agents (keep shadow dual-run until metrics OK).</li>
+<li>[ ] Full Planfile YAML auto-generated from packs (ids aligned; body still hand-maintained).</li>
+<li>[ ] Register <code>dns-record-reconcile</code> pack (still deferred — PR9 DNS connector).</li>
+<li>[ ] Flip default to <code>INTENT_PACK_DUAL_RUN=off</code> after shadow metrics stay clean.</li>
+</ul>
+<h2>Safety</h2>
+<ul>
+<li>Default <code>shadow</code> preserves observability without blocking pack-first.</li>
+<li>Use <code>INTENT_PACK_DUAL_RUN=on</code> temporarily if investigating a mismatch.</li>
+<li>Do <strong>not</strong> claim production docs publish success from this work.</li>
+<li>Packs must be mounted (<code>config/intent-packs</code> via <code>CONTROL_CONFIG_DIR</code>) in all control runtimes.</li>
+</ul>
+</main>
+</body>
+</html>

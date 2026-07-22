@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Przegląd operacyjny Subactor — 2026-07-21 — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Przegląd operacyjny Subactor — 2026-07-21</h1>
+<h2>Werdykt</h2>
+<p>Projekt <code>autonomicznosc-pl</code> jest wdrożony i zgodny z manifestem. Publiczne <code>https://autonomicznosc.pl/</code> zwraca HTTP 200, certyfikat obejmuje domenę, a hash publicznego <code>index.html</code> jest identyczny z lokalnym źródłem. Kontroler zamknął <code>PLF-614</code> jako <code>converged</code>; wykonanie produkcyjne ma osobny receipt w <code>PLF-687</code>.</p>
+<p>Lokalny runtime działa. <code>http://127.0.0.1:8199/api/status</code> zwraca <code>healthy</code>: 16/16 usług, 0 błędów. Po odtworzeniu usług z overlayem Connector LAN wszystkie kontenery są uruchomione, a usługi posiadające Docker healthcheck są zdrowe. Grafana i Prometheus nie mają healthchecka w Compose, więc ich stan trzeba nadal oceniać osobnym probe'em.</p>
+<p>Publiczna powierzchnia Subactor nie jest w pełni zdrowa. <code>status.subactor.com</code>, <code>contracts.subactor.com</code> i <code>founder.subactor.com</code> nadal rozwiązują się przez Cloudflare do <code>subactor.github.io</code> i prezentują certyfikat <code>*.github.io</code>. Plesk origin dla statusu działa pod adresem <code>217.160.250.222</code>, lecz wpis w strefie Plesk nie zmienia publicznego DNS, ponieważ autorytatywne nameservery domeny <code>subactor.com</code> to <code>addyson.ns.cloudflare.com</code> i <code>roman.ns.cloudflare.com</code>.</p>
+<h2>Co zostało wykonane</h2>
+<table>
+<thead><tr><th>Obszar</th><th>Wynik</th><th>Dowód</th></tr></thead>
+<tbody>
+<tr><td>Dokumenty prawne Autonomiczność.pl</td><td>treść kompletna 5/5; publiczne strony jeszcze niewdrożone</td><td><code>PLF-617</code>, <code>PLF-697</code></td></tr>
+<tr><td>DNS i TLS Autonomiczność.pl</td><td>gotowe</td><td>A <code>217.160.250.222</code>; SAN <code>autonomicznosc.pl</code>, <code>mail</code>, <code>www</code></td></tr>
+<tr><td>Publikacja Autonomiczność.pl</td><td>9 plików, 41 014 B przez SFTP</td><td><code>PLF-687</code>, plan <code>ec65f065…</code></td></tr>
+<tr><td>Publiczny postflight</td><td>HTTP 200, asset 200, hash zgodny</td><td><code>PLF-614</code> = <code>converged</code></td></tr>
+<tr><td>Rejestr niezależnych webspace Plesk</td><td>docroot i profil transportu w SSOT</td><td><code>core@f7e4cb1</code>, <code>platform@9297ce4</code></td></tr>
+<tr><td>Semantyka wyniku URI Process</td><td>rozróżnia transport, dry-run i apply</td><td><code>connectors@d127d4c</code></td></tr>
+<tr><td>Diagnostyka SFTP</td><td>ograniczona inwentaryzacja docroot bez treści i sekretów</td><td><code>urirun-connector-plesk@a8cfb9a</code></td></tr>
+<tr><td>Ticket-first capability preflight</td><td>ticket + idempotency key przechodzą do bridge</td><td><code>platform@9297ce4</code>, <code>core@f7e4cb1</code></td></tr>
+<tr><td>Connector LAN po restartach</td><td>odtworzony z właściwym overlayem</td><td><code>hr-bridge</code> i <code>urirun-lan-gateway</code> healthy</td></tr>
+<tr><td>Lokalny status platformy</td><td>16/16 usług, 0 błędów</td><td><code>127.0.0.1:8199/api/status</code> = <code>healthy</code></td></tr>
+</tbody></table>
+<h2>Rozszerzona walidacja po wdrożeniu</h2>
+<p>Kolejna sesja testowa potwierdziła pełny agregat <code>npm test</code> platformy oraz:</p>
+<table>
+<thead><tr><th>Zestaw</th><th>Wynik</th></tr></thead>
+<tbody>
+<tr><td>Core control</td><td>276 passed, 6 skipped, 0 failed</td></tr>
+<tr><td>Bridge connectors</td><td>34/34</td></tr>
+<tr><td>Plesk connector</td><td>94/94</td></tr>
+<tr><td>Observability</td><td>5/5</td></tr>
+<tr><td>Panel</td><td>25/25</td></tr>
+<tr><td>Reliability</td><td>9/9</td></tr>
+<tr><td>Connector LAN live mTLS/ACL</td><td>PASS</td></tr>
+</tbody></table>
+<p>Negatywne wywołanie dozwolonego URI bez <code>ticket_id</code> zwróciło HTTP 409 <code>process_ticket_required</code>. Bramki mutacji pozostały wyłączone, a lease mutacji nie istniał. Publiczny hash Autonomiczność.pl nadal wynosi <code>5bb84efbf8bee4d19691cca012a2a9d75840360a377d77f0763036eab4b93ce1</code>.</p>
+<p>Test obserwowalności wykrył fałszywie otwarty historyczny incydent. Planfile zwracał zamknięty <code>PLF-107</code> po dokładnym ID, ale nie umieszczał archiwalnego ticketu na bieżącej liście. Observer traktował brak na liście jako stan otwarty. Po poprawce wykonuje ograniczony lookup po ID, zachowując fail-safe przy błędzie; liczba otwartych incydentów spadła z 1 do 0 (<code>observability@f54c26a</code>).</p>
+<p>Test ujawnił też lukę publikacyjną: zatwierdzone dokumenty z <code>projekty/06_legal</code> nie należą do synchronizowanego katalogu <code>projekty/02_landing</code>, więc nie mają publicznych URL-i ani odnośników w stopce. Cały katalog <code>projekty/</code> jest ponadto poza repozytorium Git. <code>PLF-697</code> wymaga najpierw wersjonowanego źródła, następnie pięciu stron HTML, dry-runu, grantu i publicznego postflightu.</p>
+<h2>Dlaczego wcześniejsza publikacja nie zadziałała</h2>
+<p>Wystąpiły cztery niezależne problemy, które wcześniej zlewały się w jeden status:</p>
+<ol>
+<li><code>PLF-652</code> wykonał poprawny dry-run (<code>executed:false</code>, <code>dry_run:true</code>), lecz</li>
+</ol>
+<p>warstwa evidence nie schodziła dostatecznie głęboko przez envelope <code>bridge → urirun → function-subprocess</code>. W skrócie procesu pola były <code>null</code>.</p>
+<ol>
+<li>Reguła <code>domena różna od subactor.com → /&lt;domena&gt;</code> działa dla domen w webspace</li>
+</ol>
+<p><code>subactor.com</code>, ale <code>autonomicznosc.pl</code> jest osobnym webspace. Jego rzeczywisty transportowy docroot to <code>/var/www/vhosts/autonomicznosc.pl/httpdocs</code>.</p>
+<ol>
+<li>Endpoint wydający apply-grant uruchamiał live doctor przez chroniony bridge,</li>
+</ol>
+<p>ale nie przekazywał <code>ticket_id</code> ani <code>idempotency_key</code>. Grant był więc odrzucany kodem 503 przed mutacją.</p>
+<ol>
+<li>Normalizator capability doctora nie rozpakowywał głębokiego envelope bridge,</li>
+</ol>
+<p>przez co wszystkie wymagane capabilities wyglądały na brakujące.</p>
+<p>Każdy z tych przypadków ma teraz test regresyjny. Produkcyjny apply odbył się dopiero po nowym dry-runie, grancie związanym z dokładnym <code>plan_hash</code> i krótkim lease. Lease został usunięty po operacji.</p>
+<h2>Stan publicznych hostów</h2>
+<table>
+<thead><tr><th>Host</th><th>Stan strict HTTPS</th><th>Następna akcja</th></tr></thead>
+<tbody>
+<tr><td><code>subactor.com</code></td><td>200</td><td>brak</td></tr>
+<tr><td><code>docs.subactor.com</code></td><td>200</td><td>brak</td></tr>
+<tr><td><code>docs-stage.subactor.com</code></td><td>200</td><td>brak</td></tr>
+<tr><td><code>logo.subactor.com</code></td><td>200</td><td>brak</td></tr>
+<tr><td><code>autonomicznosc.pl</code></td><td>200, hash zgodny</td><td>monitoring</td></tr>
+<tr><td><code>status.subactor.com</code></td><td>certyfikat <code>*.github.io</code></td><td><code>PLF-685</code>, <code>PLF-689</code></td></tr>
+<tr><td><code>contracts.subactor.com</code></td><td>certyfikat <code>*.github.io</code></td><td><code>PLF-591</code>, po connectorze Cloudflare</td></tr>
+<tr><td><code>founder.subactor.com</code></td><td>certyfikat <code>*.github.io</code></td><td><code>PLF-592</code>, po connectorze Cloudflare</td></tr>
+</tbody></table>
+<p>Wniosek operacyjny: panel DNS Plesk jest właściwym miejscem tylko wtedy, gdy Plesk obsługuje autorytatywną strefę. Dla <code>subactor.com</code> źródłem prawdy jest obecnie Cloudflare. Utworzenie rekordu w Plesk może przygotować przyszłą strefę, ale nie wykonuje publicznego cutover.</p>
+<h2>Aktualne tickety</h2>
+<h3>Zamknięte i zweryfikowane</h3>
+<table>
+<thead><tr><th>Ticket</th><th>Wynik</th></tr></thead>
+<tbody>
+<tr><td><code>PLF-617</code></td><td>dokumenty prawne kompletne; historyczny <code>last_error</code> usunięty</td></tr>
+<tr><td><code>PLF-614</code></td><td>projekt <code>converged</code>, publiczny content zgodny</td></tr>
+<tr><td><code>PLF-650</code></td><td>cel generycznej publikacji osiągnięty przez <code>PLF-687</code></td></tr>
+<tr><td><code>PLF-673</code></td><td>jednorazowa zgoda/apply rozwiązana; historyczny blocker usunięty</td></tr>
+<tr><td><code>PLF-687</code></td><td>produkcyjny upload i postflight zakończone receipt'em</td></tr>
+</tbody></table>
+<h3>Wymagają dalszej pracy technicznej</h3>
+<table>
+<thead><tr><th>Priorytet</th><th>Ticket</th><th>Następny rezultat</th></tr></thead>
+<tbody>
+<tr><td>critical</td><td><code>PLF-689</code></td><td>connector Cloudflare DNS: query, exact upsert, vault, dry-run/grant/postflight</td></tr>
+<tr><td>high</td><td><code>PLF-685</code> / <code>PLF-593</code></td><td>publiczny cutover <code>status.subactor.com</code>; wcześniejszy receipt został unieważniony</td></tr>
+<tr><td>high</td><td><code>PLF-591</code></td><td>deploy/cutover <code>contracts.subactor.com</code> po obsłudze autorytatywnego DNS</td></tr>
+<tr><td>high</td><td><code>PLF-592</code></td><td>cutover <code>founder.subactor.com</code>, potem strict TLS i ingress</td></tr>
+<tr><td>high</td><td><code>PLF-690</code></td><td>ograniczenie profilu SFTP do docrootu; brak listowania systemowego <code>/</code></td></tr>
+<tr><td>high</td><td><code>PLF-697</code></td><td>wersjonowane źródło i pięć publicznych stron prawnych Autonomiczność.pl</td></tr>
+<tr><td>high</td><td><code>PLF-682</code></td><td>exact URI komunikacji i odpowiedzi Foundera</td></tr>
+<tr><td>normal</td><td><code>PLF-683</code></td><td>exact URI dashboardu, reconciliation i recruitment</td></tr>
+<tr><td>high</td><td><code>PLF-684</code></td><td>exact URI secret intake i dowodów vault</td></tr>
+</tbody></table>
+<h3>Wymagają danych albo działania Foundera</h3>
+<table>
+<thead><tr><th>Priorytet</th><th>Ticket</th><th>Brakujące wejście</th></tr></thead>
+<tbody>
+<tr><td>critical</td><td><code>PLF-679</code></td><td>złożenie sprawozdań Softreck OÜ za 2024–2025</td></tr>
+<tr><td>high</td><td><code>PLF-653</code></td><td>podstawa stażu, wynagrodzenie, czas, start, opiekun, pracodawca, URL aplikacji oraz sprawny surface Lenovo/KVM</td></tr>
+</tbody></table>
+<p><code>PLF-597</code> pozostaje ticketem zbiorczym, ale jego stare blokery <code>legal_documents_incomplete</code> i TLS Autonomiczność.pl zostały usunięte. Aktualny zakres to autorytatywny DNS dla <code>status</code>, <code>contracts</code> i <code>founder</code>.</p>
+<h2>Plan dalszej refaktoryzacji</h2>
+<ol>
+<li>Zrealizować <code>PLF-689</code> jako osobny <code>urirun-connector-cloudflare-dns</code>.</li>
+</ol>
+<p>Provider DNS musi być częścią desired-state; Plesk connector nie może raportować publicznego sukcesu na podstawie swojej nieautorytatywnej strefy.</p>
+<ol>
+<li>Dodać EQL „authoritative DNS observed” do definicji ukończenia każdego</li>
+</ol>
+<p>publicznego hosta. Receipt ma powstawać dopiero po zapytaniu autorytatywnych NS i strict TLS z publicznego resolvera.</p>
+<ol>
+<li>Zrealizować <code>PLF-690</code>: capability discovery dla dostępnych profili shell,</li>
+</ol>
+<p>konto/chroot ograniczone do webspace i negatywny test listowania <code>/</code>.</p>
+<ol>
+<li>Ujednolicić <code>site-resources.json</code> z obserwacją <code>plesk://…/site/query/docroot</code>.</li>
+</ol>
+<p>Docroot, profil credential i provider DNS są danymi topologii, nie slotami wybieranymi przez LLM.</p>
+<ol>
+<li>Rozszerzyć completion receipt o obowiązkowe biznesowe EQL. Sukces transportu</li>
+</ol>
+<p>i <code>dry_run_passed</code> nie mogą same zamknąć nadrzędnego celu publikacji.</p>
+<ol>
+<li>Utrwalić regułę restartu: usługi należące do Connector LAN należy odtwarzać</li>
+</ol>
+<p>z <code>docker-compose.connector-lan.yml</code>; restart tylko z bazowym Compose usuwa sieć <code>connector-execution</code> z <code>hr-bridge</code>.</p>
+<h2>Bezpieczne wznowienie</h2>
+<p>Najbliższa automatyczna praca nie wymaga kolejnego uploadu Autonomiczność.pl. Najpierw wykonawca <code>security-bot</code> powinien podjąć <code>PLF-689</code> i <code>PLF-690</code>. Do czasu gotowego konektora Cloudflare nie należy ponawiać zmian DNS <code>status.subactor.com</code> przez Plesk ani oznaczać <code>PLF-685</code> jako zakończonego.</p>
+</main>
+</body>
+</html>

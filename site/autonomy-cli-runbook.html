@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autonomy CLI runbook — connector goals from the shell — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="./index.html">subactor/docs</a></nav>
+<h1>Autonomy CLI runbook — connector goals from the shell</h1>
+<p>Practical runbook: how Subactor turns a natural-language (NL) goal into governed URI Process steps, starting from the <strong>shell CLI</strong>. Focus example: documentation in the <code>docs</code> repo published to <strong>docs.subactor.com</strong> <code>httpdocs</code>.</p>
+<p>Related (platform-internal, more detailed on single concerns):</p>
+<table>
+<thead><tr><th>Doc</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td><a href="../platform/docs/URI_PROCESS_AUTONOMY.html"><code>platform/docs/URI_PROCESS_AUTONOMY.md</code></a></td><td>Contract AQL / OQL / URI layers</td></tr>
+<tr><td><a href="../platform/docs/GITHUB_PLESK_URI_PROCESSES.html"><code>platform/docs/GITHUB_PLESK_URI_PROCESSES.md</code></a></td><td>GitHub + Plesk recipes, www sync</td></tr>
+<tr><td><a href="../platform/docs/AUTONOMY_CONTRACTS.html"><code>platform/docs/AUTONOMY_CONTRACTS.md</code></a></td><td>Autonomy contracts + delegation</td></tr>
+<tr><td><a href="../www/deployment/PLESK.html"><code>www/deployment/PLESK.md</code></a></td><td>www → subactor.com httpdocs (working path)</td></tr>
+<tr><td><a href="../orchestrator/README.html"><code>orchestrator/README.md</code></a></td><td>Thin NL\</td><td>ticket\</td><td>OQL → urirun hub</td></tr>
+</tbody></table>
+<hr />
+<h2>1. Current state (what works)</h2>
+<h3>Stack map</h3>
+<table>
+<thead><tr><th>Layer</th><th>Where</th><th>Role</th><th>Status (after recent <code>www/</code> publish)</th></tr></thead>
+<tbody>
+<tr><td>Founder CLI</td><td><code>platform/bin/subactor</code> (PATH: <code>~/.local/bin/subactor</code>)</td><td>NL ask → control <code>:8091</code>, tickets, plans, REST proxy</td><td>Works when platform is up + <code>SUBACTOR_ADMIN_TOKEN</code></td></tr>
+<tr><td>Orchestrator CLI</td><td><code>orchestrator/bin/subactor-run.mjs</code></td><td>Recipe / ticket / stub-NL → AQL gate → urirun</td><td>Works for known recipes; NL is <strong>stub</strong> (no free-form URI invent)</td></tr>
+<tr><td>Control / panel</td><td><code>:8091</code></td><td>Plans, autonomy contracts, integrations, delegation</td><td>Local Docker stack</td></tr>
+<tr><td>Planfile</td><td><code>:8765</code> + <code>.planfile/</code></td><td>Tickets with <code>uri_processes</code></td><td>Import recipes work (e.g. www sync)</td></tr>
+<tr><td>AQL / contracts</td><td><code>contracts/</code>, runtime</td><td>WHO may run WHAT</td><td>Portfolio + TestQL validation</td></tr>
+<tr><td>OQL</td><td>control / bridge</td><td>WHAT (<code>process.run</code>, <code>plesk.site.sync</code>, …)</td><td>Dry-run planners; apply via urirun</td></tr>
+<tr><td>URI / urirun</td><td><code>connectors/services/urirun-node</code></td><td>HOW (<code>plesk://…</code>, <code>github://…</code>)</td><td>Live Plesk sync path proven for <strong>www</strong></td></tr>
+<tr><td>OpenRouter</td><td><code>agents</code> llm-gateway</td><td>Intent / planning only</td><td>Optional; deterministic connectors do FTP/SFTP</td></tr>
+<tr><td>Vault</td><td>browser-agent / encrypted entries</td><td>Credentials (<code>plesk-runtime</code>, <code>plesk-sftp</code>, …)</td><td>Bootstrap + lease model exists</td></tr>
+<tr><td>Plesk sync</td><td><code>plesk://host/site/command/sync</code></td><td>Tree upload to <code>/httpdocs</code></td><td><strong>www → subactor.com</strong> dry-run + apply (gate <code>PLESK_SYNC_APPLY=1</code>)</td></tr>
+</tbody></table>
+<h3>CLI entry points (start here)</h3>
+<pre><code class="language-bash"># Founder control plane (needs live platform :8091)
+ln -sfn ~/github/subactor/platform/bin/subactor ~/.local/bin/subactor
+subactor health
+subactor ask &quot;zsynchronizuj www do httpdocs&quot;          # LLM intent → ticket/plan
+subactor ask &quot;...&quot; --execute                          # approve + execute
+subactor ask &quot;...&quot; --autonomous &lt;contract_id&gt;         # within contract bounds
+subactor tickets
+subactor plans --status proposed
+subactor dispatch
+
+# Thin orchestrator (recipe-first; no OpenRouter key in this package)
+cd ~/github/subactor/orchestrator
+node bin/subactor-run.mjs --recipe ../www/deployment/www-httpdocs-sync.urirun.json
+node bin/subactor-run.mjs --nl &quot;zsynchronizuj www&quot;    # phrase stub only
+# Founder bypass: SUBACTOR_ADMIN_TOKEN set → human_approval skipped; still dry-run by default
+# Live apply: --execute + PLESK_SYNC_APPLY=1 on urirun-node</code></pre>
+<h3>What already works for publish</h3>
+<table>
+<thead><tr><th>Capability</th><th>Current</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Probe SFTP/FTP</td><td><code>plesk://host/site/query/methods</code></td><td>Deterministic</td></tr>
+<tr><td>Dry-run sync</td><td><code>plesk://host/site/command/sync</code> <code>apply=false</code></td><td>Default; hashes + file plan</td></tr>
+<tr><td>Apply sync</td><td>same URI <code>apply=true</code> + <code>PLESK_SYNC_APPLY=1</code></td><td>Env gate, not LLM</td></tr>
+<tr><td>Source allowlist</td><td>basename <code>www</code> <strong>or</strong> <code>docs</code> <strong>or</strong> <code>PLESK_SYNC_ALLOWED_SOURCES</code></td><td>docs allowlisted</td></tr>
+<tr><td>NL phrases (www + docs)</td><td><code>agents/nlp-uri-phrases.yaml</code></td><td>Polish/English sync phrases → dry-run URI</td></tr>
+<tr><td>Recipe + Planfile import</td><td><code>www/deployment/www-httpdocs-sync.*</code>, <code>docs/deployment/docs-httpdocs-sync.*</code></td><td>Reusable ticket shapes</td></tr>
+<tr><td>Founder CLI bypass</td><td><code>SUBACTOR_ADMIN_TOKEN</code> on <code>subactor-run</code></td><td>Allowlist <code>*</code>; still respects apply env</td></tr>
+</tbody></table>
+<p>OpenRouter role today: <strong>intent / model selection / plan proposal only</strong>. Once URI + payload are known, FTP/SFTP ensure and sync are **deterministic connector calls** — no LLM in the upload path.</p>
+<hr />
+<h2>2. Gaps (better autonomy + subtask delegation)</h2>
+<table>
+<thead><tr><th>Gap</th><th>Why it blocks the docs goal</th><th>Target</th></tr></thead>
+<tbody>
+<tr><td>Auto-create SFTP from subscription</td><td>Vault entries often hand-bootstrapped</td><td><code>plesk://host/ftpuser/command/ensure</code> → vault <code>plesk-sftp</code> as a first URI step</td></tr>
+<tr><td>Multi-repo / multi-domain sync</td><td>Allowlist is <code>www</code>-centric</td><td>Allow <code>docs</code> (and prefixes) for <code>docs.subactor.com</code></td></tr>
+<tr><td>Docs recipe</td><td>Only www recipe exists</td><td><code>docs-httpdocs-sync.urirun.json</code> + Planfile import</td></tr>
+<tr><td>NL routing for multi-step goals</td><td>Stub NL / single-intent models</td><td>Decompose NL → ordered <code>uri_processes</code> + content subtask</td></tr>
+<tr><td>Content generation into <code>docs/</code></td><td>Manual / external editor</td><td>Optional LLM step → write files → commit; sync stays deterministic</td></tr>
+<tr><td>Domain / subscription capability</td><td>Manual Plesk UI / API</td><td>Preflight URI: domain exists, TLS, httpdocs writable</td></tr>
+<tr><td>Vault lease in CLI path</td><td>Integrations UI / secret-link</td><td>CLI/recipe can ensure-then-lease without pasting secrets</td></tr>
+<tr><td>Founder vs bot allowlists</td><td>Admin <code>*</code> vs bot <code>plesk://*</code></td><td>Document + TestQL: founder bypass ≠ bot expand</td></tr>
+<tr><td>Delegation of subtasks</td><td>Ticket respond/delegate exists</td><td>Auto-split: content bot vs publish bot vs human TLS check</td></tr>
+<tr><td>HTTPS verify</td><td>Manual curl</td><td>URI or OQL health check after apply</td></tr>
+</tbody></table>
+<hr />
+<h2>3. Proposed model — NL only example</h2>
+<p>User says only:</p>
+<blockquote>„stwórz dokumentację w folderze docs i repo docs i opublikuj dokumentację<br />dla systemu subactor pod domeną docs.subactor.com”</blockquote>
+<h3>Pipeline (target)</h3>
+<pre><code class="language-mermaid">flowchart TD
+  NL[NL shell: subactor ask / subactor-run] --&gt; LLM[OpenRouter via llm-gateway]
+  LLM --&gt; Plan[Planfile ticket + uri_processes]
+  Plan --&gt; AQL[Contract AQL gate]
+  AQL --&gt; OQL[OQL process.run / plesk.*]
+  OQL --&gt; URI[urirun-node]
+  URI --&gt; Pre[Domain / subscription preflight]
+  Pre --&gt; Cred[ftpuser ensure → vault]
+  Cred --&gt; Content[LLM or human: docs content]
+  Content --&gt; Sync[plesk://…/sync dry-run then apply]
+  Sync --&gt; Verify[HTTPS verify docs.subactor.com]
+  AQL -.-&gt;|out of contract| Human[human:founder ticket]</code></pre>
+<h3>Ordered steps (current vs target)</h3>
+<table>
+<thead><tr><th>#</th><th>Step</th><th>Current</th><th>Target</th><th>LLM?</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Parse NL → intent + fields</td><td><code>subactor ask</code> / intent models; orchestrator NL stub</td><td>Same + multi-goal decomposition (docs content + publish)</td><td>Yes (intent only)</td></tr>
+<tr><td>1</td><td>Open Planfile ticket with <code>uri_processes</code></td><td>Manual import / www recipe</td><td>Auto from NL + recipe template <code>docs-httpdocs-sync</code></td><td>No (template fill)</td></tr>
+<tr><td>2</td><td>AQL gate</td><td>Contracts + founder bypass</td><td>Same; docs publish under <code>ALLOW URI_PROCESS plesk://*</code></td><td>No</td></tr>
+<tr><td>3</td><td>Ensure domain / subscription</td><td>Manual / Integrations UI</td><td><code>plesk://…</code> query (domain, hosting, TLS flags)</td><td>No</td></tr>
+<tr><td>4</td><td>Ensure SFTP → vault</td><td>Documented URI; often manual</td><td>Always first automated step before sync</td><td>No</td></tr>
+<tr><td>5</td><td>Generate/update docs in <code>docs/</code></td><td>Human / Cursor</td><td>Optional content bot; commit to <code>subactor/docs</code></td><td>Optional</td></tr>
+<tr><td>6</td><td>Sync dry-run</td><td>Works for <strong>www</strong>; not for docs allowlist</td><td>Same URI, <code>source_dir=…/docs</code>, domain <code>docs.subactor.com</code></td><td>No</td></tr>
+<tr><td>7</td><td>Sync apply</td><td><code>PLESK_SYNC_APPLY=1</code></td><td>Same gate; founder may <code>--execute</code></td><td>No</td></tr>
+<tr><td>8</td><td>Verify HTTPS</td><td>Manual</td><td>Curl/health URI; fail → ticket</td><td>No</td></tr>
+</tbody></table>
+<hr />
+<h2>4. Where the LLM participates vs deterministic steps</h2>
+<table>
+<thead><tr><th>Phase</th><th>Actor</th><th>Tooling</th><th>LLM</th></tr></thead>
+<tbody>
+<tr><td>Intent extraction</td><td>llm-gateway → OpenRouter</td><td><code>subactor ask</code>, <code>/api/llm/intent</code></td><td><strong>Yes</strong> — typed JSON intent / model id</td></tr>
+<tr><td>Plan shape</td><td>orchestrator / control</td><td>recipe + <code>uri_processes</code></td><td>Prefer <strong>no</strong> — fill known recipe</td></tr>
+<tr><td>Contract check</td><td>runtime AQL</td><td><code>contractChecker</code></td><td>No</td></tr>
+<tr><td>Credential ensure</td><td>urirun Plesk connector</td><td><code>plesk://host/ftpuser/command/ensure</code></td><td>No</td></tr>
+<tr><td>File sync</td><td>urirun Plesk connector</td><td><code>plesk://host/site/command/sync</code></td><td>No</td></tr>
+<tr><td>Docs prose / structure</td><td>optional content agent</td><td>write into <code>docs/</code> git</td><td><strong>Optional</strong></td></tr>
+<tr><td>Escalation text</td><td>control / Planfile</td><td>ticket response</td><td>Optional</td></tr>
+</tbody></table>
+<p><strong>Rule:</strong> OpenRouter never holds FTP/SFTP passwords and never performs upload. Connectors read vault leases; apply requires explicit env gate.</p>
+<hr />
+<h2>5. USER vs SYSTEM — APIs / languages / CLIs</h2>
+<p>Start from the shell. Prefer deterministic CLIs when the URI is already known.</p>
+<table>
+<thead><tr><th>Step</th><th>USER does</th><th>SYSTEM does</th><th>CLI / API / language</th></tr></thead>
+<tbody>
+<tr><td>Bootstrap PATH + token</td><td>Symlink CLI; set <code>SUBACTOR_ADMIN_TOKEN</code> in <code>platform/.env</code></td><td>—</td><td>bash: <code>subactor</code></td></tr>
+<tr><td>Health</td><td><code>subactor health</code></td><td>Control <code>:8091</code></td><td>HTTP GET <code>/health</code></td></tr>
+<tr><td>NL goal</td><td>Types Polish/English sentence</td><td>Intent → ticket → proposed plan</td><td><code>subactor ask &quot;…&quot;</code> → POST control LLM + Planfile</td></tr>
+<tr><td>Or skip LLM</td><td>Pass recipe path</td><td>Load <code>uri_processes</code>, topo-run</td><td><code>node bin/subactor-run.mjs --recipe …</code></td></tr>
+<tr><td>Approve / autonomy</td><td><code>--execute</code> or <code>--autonomous &lt;id&gt;</code> or panel approve</td><td>AQL check; dispatch</td><td>CLI flags / REST <code>/api/plans/*</code></td></tr>
+<tr><td>Founder bypass</td><td>Export admin token</td><td>Skip <code>human_approval</code>; widen URI allowlist</td><td>env <code>SUBACTOR_ADMIN_TOKEN</code></td></tr>
+<tr><td>Ensure SFTP</td><td>Once: approve high-risk step if contract requires</td><td>Create user, write vault entry</td><td>URI <code>plesk://host/ftpuser/command/ensure</code> via urirun <code>POST /run</code></td></tr>
+<tr><td>Content</td><td>Reviews PR/diff or writes docs</td><td>Optional LLM write + git commit</td><td>git in <code>docs/</code> repo; not urirun</td></tr>
+<tr><td>Dry-run sync</td><td>Reviews file plan / hashes</td><td>Plan only</td><td>URI sync <code>apply=false</code></td></tr>
+<tr><td>Live sync</td><td>Sets <code>PLESK_SYNC_APPLY=1</code> on node (or founder policy)</td><td>Upload via SFTP/FTP</td><td>URI sync <code>apply=true</code></td></tr>
+<tr><td>Verify</td><td>Spot-check browser</td><td>Optional automated GET</td><td><code>curl -fsS https://docs.subactor.com/</code></td></tr>
+<tr><td>Out of scope</td><td>Maintains preauthorized mandates/providers</td><td>Resolution Engine selects actor/provider and monitors SLA</td><td>Planfile + authority graph</td></tr>
+</tbody></table>
+<h3>Languages / packages (no secrets in docs)</h3>
+<table>
+<thead><tr><th>Concern</th><th>Package / path</th></tr></thead>
+<tbody>
+<tr><td>Shell founder CLI</td><td><code>platform/bin/subactor</code> (bash → curl → <code>:8091</code>)</td></tr>
+<tr><td>Orchestrator</td><td><code>@subactor/orchestrator</code> — JS (<code>runTask</code>)</td></tr>
+<tr><td>Bridge OQL planner</td><td><code>connectors/services/bridge</code> — <code>planHttpdocsSync</code></td></tr>
+<tr><td>Plesk connector</td><td><code>urirun-connector-plesk</code> (external) — Python <code>site_sync</code></td></tr>
+<tr><td>Phrases</td><td><code>agents/nlp-uri-phrases.yaml</code></td></tr>
+<tr><td>Contracts</td><td><code>contracts/**/*.contract.aql</code></td></tr>
+</tbody></table>
+<hr />
+<h2>6. Concrete flow — docs → docs.subactor.com</h2>
+<p>Mirror of the proven <strong>www → subactor.com</strong> path, adapted for docs.</p>
+<h3>6.1 Preconditions</h3>
+<table>
+<thead><tr><th>Check</th><th>Current</th><th>Target</th></tr></thead>
+<tbody>
+<tr><td>Domain <code>docs.subactor.com</code> on Plesk subscription</td><td>Assumed / CNAME in repo</td><td>Preflight URI confirms</td></tr>
+<tr><td>Vault <code>plesk-sftp</code> (or ftp)</td><td>Often manual</td><td><code>ftpuser/command/ensure</code></td></tr>
+<tr><td>Allowlist includes docs tree</td><td><strong>Gap</strong> (<code>www</code> only by default)</td><td><code>PLESK_SYNC_ALLOWED_SOURCES</code> includes docs path <strong>or</strong> basename <code>docs</code></td></tr>
+<tr><td>Recipe</td><td>Missing</td><td>Add beside www recipe</td></tr>
+<tr><td><code>CNAME</code> / site files in <code>docs/</code></td><td>Present (<code>docs.subactor.com</code>)</td><td>Keep; sync preserves remote <code>.htaccess</code> / <code>.well-known</code></td></tr>
+</tbody></table>
+<h3>6.2 Target recipe shape (illustrative — no secrets)</h3>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;docs-httpdocs-sync&quot;,
+  &quot;name&quot;: &quot;Sync docs → Plesk httpdocs (docs.subactor.com)&quot;,
+  &quot;situation&quot;: {
+    &quot;source_dir&quot;: &quot;/home/tom/github/subactor/docs&quot;,
+    &quot;host&quot;: &quot;prototypowanie.pl&quot;,
+    &quot;domain&quot;: &quot;docs.subactor.com&quot;
+  },
+  &quot;uri_processes&quot;: [
+    {
+      &quot;id&quot;: &quot;docs-domain-preflight&quot;,
+      &quot;uri&quot;: &quot;plesk://host/api/query/request&quot;,
+      &quot;payload&quot;: {&quot;path&quot;: &quot;/api/v2/domains&quot;},
+      &quot;human_approval&quot;: false
+    },
+    {
+      &quot;id&quot;: &quot;docs-sftp-ensure&quot;,
+      &quot;uri&quot;: &quot;plesk://host/ftpuser/command/ensure&quot;,
+      &quot;payload&quot;: {
+        &quot;kind&quot;: &quot;system&quot;,
+        &quot;domain&quot;: &quot;docs.subactor.com&quot;,
+        &quot;vault_entry_id&quot;: &quot;plesk-sftp&quot;
+      },
+      &quot;depends_on&quot;: [&quot;docs-domain-preflight&quot;],
+      &quot;human_approval&quot;: true
+    },
+    {
+      &quot;id&quot;: &quot;docs-methods&quot;,
+      &quot;uri&quot;: &quot;plesk://host/site/query/methods&quot;,
+      &quot;payload&quot;: {&quot;host&quot;: &quot;prototypowanie.pl&quot;},
+      &quot;depends_on&quot;: [&quot;docs-sftp-ensure&quot;],
+      &quot;human_approval&quot;: false
+    },
+    {
+      &quot;id&quot;: &quot;docs-sync-dry-run&quot;,
+      &quot;uri&quot;: &quot;plesk://host/site/command/sync&quot;,
+      &quot;payload&quot;: {
+        &quot;source_dir&quot;: &quot;/home/tom/github/subactor/docs&quot;,
+        &quot;remote_path&quot;: &quot;/httpdocs&quot;,
+        &quot;host&quot;: &quot;prototypowanie.pl&quot;,
+        &quot;domain&quot;: &quot;docs.subactor.com&quot;,
+        &quot;apply&quot;: false
+      },
+      &quot;depends_on&quot;: [&quot;docs-methods&quot;],
+      &quot;human_approval&quot;: false
+    },
+    {
+      &quot;id&quot;: &quot;docs-sync-apply&quot;,
+      &quot;uri&quot;: &quot;plesk://host/site/command/sync&quot;,
+      &quot;payload&quot;: {
+        &quot;source_dir&quot;: &quot;/home/tom/github/subactor/docs&quot;,
+        &quot;remote_path&quot;: &quot;/httpdocs&quot;,
+        &quot;host&quot;: &quot;prototypowanie.pl&quot;,
+        &quot;domain&quot;: &quot;docs.subactor.com&quot;,
+        &quot;apply&quot;: true
+      },
+      &quot;depends_on&quot;: [&quot;docs-sync-dry-run&quot;],
+      &quot;human_approval&quot;: false
+    }
+  ]
+}</code></pre>
+<p>Content generation (LLM) is a <strong>separate</strong> preceding ticket or plan step writing into the git repo — not an argument to <code>sync</code>.</p>
+<h3>6.3 Operator cheat sheet (today → tomorrow)</h3>
+<p><strong>Today (www pattern, adapt manually for docs):</strong></p>
+<pre><code class="language-bash"># 1) Prefer recipe without inventing URI
+cd ~/github/subactor/orchestrator
+node bin/subactor-run.mjs --recipe ../www/deployment/www-httpdocs-sync.urirun.json
+
+# 2) Or founder NL → control (intent only)
+subactor ask &quot;zsynchronizuj www do httpdocs&quot; --json
+
+# 3) Live apply only after dry-run OK
+# on urirun-node host: export PLESK_SYNC_APPLY=1
+node bin/subactor-run.mjs --recipe ../www/deployment/www-httpdocs-sync.urirun.json --execute</code></pre>
+<p><strong>Tomorrow (docs autonomy):</strong></p>
+<pre><code class="language-bash"># NL (intent → multi-step ticket)
+subactor ask &quot;stwórz dokumentację w folderze docs i opublikuj na docs.subactor.com&quot; \
+  --autonomous &lt;docs-publish-contract-id&gt;
+
+# Or deterministic
+node bin/subactor-run.mjs --recipe ../docs/deployment/docs-httpdocs-sync.urirun.json
+# content bot ticket completes first; then:
+node bin/subactor-run.mjs --recipe ../docs/deployment/docs-httpdocs-sync.urirun.json --execute
+curl -fsS -o /dev/null -w &quot;%{http_code}\n&quot; https://docs.subactor.com/</code></pre>
+<h3>6.4 Allowlist / safety</h3>
+<table>
+<thead><tr><th>Control</th><th>Mechanism</th></tr></thead>
+<tbody>
+<tr><td>Source dirs</td><td>basename allowlist / <code>PLESK_SYNC_ALLOWED_SOURCES</code></td></tr>
+<tr><td>Live upload</td><td><code>PLESK_SYNC_APPLY=1</code> on urirun-node</td></tr>
+<tr><td>Who may call</td><td>Contract AQL <code>ALLOW URI_PROCESS plesk://*</code></td></tr>
+<tr><td>Irreversible creds</td><td><code>human_approval: true</code> on ensure (unless founder admin policy)</td></tr>
+<tr><td>Secrets</td><td>Vault entries only; never in URI payload, tickets, or this doc</td></tr>
+</tbody></table>
+<hr />
+<h2>7. Subtask delegation (autonomy pattern)</h2>
+<table>
+<thead><tr><th>Subtask</th><th>Preferred actor</th><th>Queue</th><th>Approval</th></tr></thead>
+<tbody>
+<tr><td>Intent / plan proposal</td><td>bot + LLM gateway</td><td>system</td><td>none (propose only)</td></tr>
+<tr><td>SFTP ensure</td><td><code>bot:project-operator-bot</code></td><td>bot</td><td>human once / founder contract</td></tr>
+<tr><td>Docs content</td><td>content bot or human</td><td>docs</td><td>review diff</td></tr>
+<tr><td>Sync dry-run</td><td>project-operator-bot</td><td>bot</td><td>none</td></tr>
+<tr><td>Sync apply</td><td>project-operator-bot</td><td>bot</td><td>env gate (or human)</td></tr>
+<tr><td>HTTPS / DNS fail</td><td>escalate</td><td><code>human:founder</code></td><td>decision</td></tr>
+</tbody></table>
+<p>Use Planfile <strong>Respond + Delegate</strong> so note, assignee, queue, and status stay one history entry (see URI Process autonomy doc).</p>
+<hr />
+<h2>8. Implementation backlog (docs publish autonomy)</h2>
+<p>Ordered, small tickets — one concern each:</p>
+<ol>
+<li>Allowlist <code>docs</code> (or prefix) for sync planner + connector.</li>
+<li>Add <code>docs/deployment/docs-httpdocs-sync.urirun.json</code> + Planfile import.</li>
+<li>Wire <code>ftpuser/command/ensure</code> as first step; vault id convention.</li>
+<li>NL phrases + optional LLM model <code>docs-httpdocs-sync.pl.aql</code>.</li>
+<li>Optional content-generation ticket template (LLM → files → commit).</li>
+<li>Post-apply HTTPS verify step / TestQL scenario.</li>
+<li>Contract portfolio entry for docs publish (human-signed).</li>
+</ol>
+<hr />
+<h2>9. Quick reference — OpenRouter vs connectors</h2>
+<table>
+<thead><tr><th></th><th>OpenRouter (LLM)</th><th>Connectors (urirun)</th></tr></thead>
+<tbody>
+<tr><td>Job</td><td>Intent, planning, optional prose</td><td>FTP/SFTP ensure, sync, API queries</td></tr>
+<tr><td>Called from</td><td>llm-gateway / <code>subactor ask</code></td><td>urirun-node <code>POST /run</code></td></tr>
+<tr><td>Sees secrets?</td><td>No</td><td>Via vault lease only</td></tr>
+<tr><td>Can upload httpdocs?</td><td>No</td><td>Yes, if apply gate set</td></tr>
+<tr><td>Failure mode</td><td>Deterministic fallback / escalate</td><td>Structured error codes → ticket</td></tr>
+</tbody></table>
+<hr />
+<p><em>Canonical path: <code>docs/autonomy-cli-runbook.md</code> (this file). Umbrella link: repo root <code>README.md</code>.</em></p>
+</main>
+</body>
+</html>

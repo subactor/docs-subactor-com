@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raport stanu platformy Subactor — publikacja Plesk — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Raport stanu platformy Subactor — publikacja Plesk</h1>
+<p><strong>Data:</strong> 2026-07-19 · <strong>Zakres:</strong> ścieżka <code>subactor ask</code> → intent pack → ticket → plan → dry-run → apply (Plesk), stan po promocji generycznego packa <code>site-publish</code> (SELFDEV-062).</p>
+<blockquote><strong>Aktualizacja 2026-07-19 (po refaktoryzacji):</strong> wykonano punkty <strong>2.1</strong> (commit promocji), <strong>2.2</strong> (tokenowy matcher fraz), <strong>2.5</strong> (cały stack z repo, zero mountów <code>/tmp</code>), <strong>3.1</strong> (podział <code>registry.mjs</code> na 4 moduły) i <strong>3.3</strong> (wspólny <code>config-paths.mjs</code>). Szczegóły w treści — wykonane pozycje oznaczone ✅. Testy po refaktoryzacji: intent-packs 30/30, control 113 (0 fail), modele AQL OK; e2e <code>ask</code> z identycznymi <code>plan_hash</code> (www <code>1418bcbd…</code>, identity <code>3b19a968…</code>). Fraza z wtrąconym słowem („opublikuj stronę <strong>identity</strong> na plesk&quot;) rozwiązuje się teraz poprawnie do packa <code>site-publish</code>.<br /><br /><strong>Aktualizacja 2026-07-19 (wieczór):</strong> domknięto prace wokół digital twin / ciągłości decyzyjnej — subject-bound scope <code>digital-twin:self:read</code>, synchronizację env-contract (<code>npm run env:sync</code>) i plan „constitutional continuity&quot;. Szczegóły w sekcji <strong>6</strong>.</blockquote>
+<p>Powiązane dokumenty:</p>
+<table>
+<thead><tr><th>Dokument</th><th>Zakres</th></tr></thead>
+<tbody>
+<tr><td><a href="../autonomy-cli-runbook.html"><code>autonomy-cli-runbook.md</code></a></td><td>Runbook CLI: NL goal → URI Process</td></tr>
+<tr><td><a href="koru-subactor-autonomy-assessment-2026-07-18.html"><code>koru-subactor-autonomy-assessment-2026-07-18.md</code></a></td><td>Ocena autonomii (dzień wcześniej)</td></tr>
+<tr><td><code>platform/docs/GITHUB_PLESK_URI_PROCESSES.md</code></td><td>Przepisy GitHub + Plesk</td></tr>
+</tbody></table>
+<hr />
+<h2>1. Co działa poprawnie (zweryfikowane e2e)</h2>
+<p>Wszystkie testy wykonano wyłącznie przez <code>subactor ask</code>, na <code>PLESK_MODE=mock</code> (bezpieczne apply do mocka; ścieżka produkcyjna wymaga świadomej decyzji foundera).</p>
+<table>
+<thead><tr><th>Obszar</th><th>Dowód</th><th>Źródło</th></tr></thead>
+<tbody>
+<tr><td>Control plane <code>:8091</code>, bridge, urirun-node</td><td>15/15 usług zdrowych, 0 błędów krytycznych</td><td><code>platform/docker-compose.yml</code></td></tr>
+<tr><td>Intent → ticket → plan → dry-run (4 domeny)</td><td>www 23 pliki · docs 82 · docs-stage 82 · logo 73; deterministyczne packi, koszt LLM $0, preflight OK</td><td><code>platform/config/intent-packs/*.v1.json</code></td></tr>
+<tr><td>Apply z pełnym governance</td><td>podpisany apply-grant związany z <code>plan_hash</code> → mutate lease TTL 900 s → upload SFTP z manifestem SHA-256 → lease cleared</td><td><code>platform/components/runtime/src/apply-grant.mjs</code>, <code>platform/bin/subactor</code></td></tr>
+<tr><td><strong>Nowe domeny — generyczny pack <code>site-publish</code></strong> (aktywowany 2026-07-19)</td><td><code>--field source_ref=workspace:identity</code> → <code>identity.subactor.com</code>, dry-run 22 pliki → docroot <code>/identity.subactor.com</code>, mock apply OK</td><td><code>platform/config/intent-packs/site-publish.v1.json</code>, <code>platform/components/core/services/control/src/site-publish-resolver.mjs</code></td></tr>
+<tr><td>Testy</td><td>intent-packs 30/30 · control 113 (0 fail) · modele AQL OK · regresja 4 domen z identycznymi <code>plan_hash</code></td><td><code>platform/test/intent-packs.test.mjs</code>, <code>platform/components/core/services/control/tests/</code></td></tr>
+<tr><td>Preflight produkcyjny</td><td>vault kompletny (<code>plesk-runtime</code>, <code>plesk-subscription</code>, <code>plesk-ftp/sftp</code>, <code>deploy-ftp/sftp</code>), HTTPS 200 na docs/logo/www/identity.subactor.com</td><td><code>platform/bin/subactor-live-publish.sh</code></td></tr>
+</tbody></table>
+<p>Przykładowe wywołania (działające):</p>
+<pre><code class="language-bash">subactor ask &quot;zsynchronizuj www do httpdocs subactor.com&quot; --execute --yes     # dry-run
+subactor ask &quot;zaktualizuj zawartość folderu www i opublikuj na subactor.com&quot; --apply --yes
+subactor ask &quot;opublikuj stronę na plesk&quot; --field source_ref=workspace:identity --execute --yes</code></pre>
+<p>Co było potrzebne do promocji <code>site-publish</code> (wykonane):</p>
+<ul>
+<li>zdjęcie flagi <code>shadow</code> z packa — <code>platform/config/intent-packs/site-publish.v1.json</code></li>
+<li>model AQL — <code>platform/components/contracts/models/site-publish.pl.aql</code></li>
+<li>recipe — <code>platform/config/recipes/site-publish.urirun.json</code></li>
+<li>scenariusz wykonywalny — <code>platform/config/scenarios.json</code></li>
+<li>hook deterministycznego rozwiązania <code>source_ref → source_dir + domain + remote_path</code> przed walidacją AQL — <code>platform/components/core/services/control/src/routes/plans.mjs</code> (<code>handleProposeFromIntent</code> → <code>buildSitePublishSituation</code>)</li>
+<li>mounty zasobów workspace (ro) do hr-control i <code>identity</code> do urirun-node — <code>platform/docker-compose.yml</code></li>
+<li><code>PLESK_SYNC_ALLOWED_SOURCES=/home/tom/github/subactor</code> na urirun-node (tryb prefiksowy zamiast basename <code>{www,docs,logo}</code>) — <code>platform/docker-compose.yml</code>, logika: <code>urirun-connectors/urirun-connector-plesk/urirun_connector_plesk/core.py</code> (<code>_source_allowed</code>)</li>
+</ul>
+<hr />
+<h2>2. Co wymaga poprawy</h2>
+<h3>2.1 ✅ Nieskomitowane zmiany promocji site-publish — WYKONANE</h3>
+<p>Zmiany skomitowane w submodułach i platformie (commity „refactoring&quot; + <code>chore: pin agents submodule at 712bc45</code>). Submoduły <code>components/core</code> i <code>components/contracts</code> zakotwiczone na branchu <code>main</code> (były detached HEAD — ryzyko utraty commitów). Pin agents w <code>platform/test/intent-packs.test.mjs</code> zaktualizowany do <code>712bc455…</code>.</p>
+<h3>2.2 ✅ Dopasowanie fraz jest substring-owe — WYKONANE (tier tokenowy)</h3>
+<p>Nowy <code>platform/config/intent-packs/phrase-matcher.mjs</code>: tier 1 to historyczny exact/substring (wyczerpywany w całości dla wszystkich packów — zero zmian rankingu istniejących dopasowań), tier 2 to podciąg tokenów z ograniczonymi wtrąceniami (≤2 tokeny między kolejnymi słowami frazy). „opublikuj stronę <strong>identity</strong> na plesk&quot; trafia teraz w pack <code>site-publish</code> (potwierdzone e2e, <code>plan_hash</code> identyczny z czystą frazą). <code>resolveNlpUriFromPacks</code> celowo pozostał substring-only (bezpośrednia mapa fraza→URI pozostaje konserwatywna).</p>
+<p><em>Pozostało (opcjonalnie):</em> wpięcie ekstraktora slotów <code>site-intent-extractor.mjs</code> w ścieżkę <code>ask</code>, żeby <code>source_ref</code> wyciągał się z NL bez <code>--field</code>.</p>
+<h3>2.3 Rosnący backlog eskalacji</h3>
+<p>„Do uwagi człowieka&quot;: 105 → 135 w ciągu jednej sesji; 436 ticketów, w tym dziesiątki duplikatów <code>Przygotuj dostęp zdalny: Anna Nowak [pending]</code> i auto-zakładane SELFDEV przy każdym nieudanym ask (<code>SELFDEV-005/-011/-062/-073…</code>).</p>
+<p><strong>Propozycja:</strong> deduplikacja ticketów po <code>(typ, hash sytuacji)</code> przy tworzeniu oraz TTL/auto-close dla SELFDEV, których przyczyna zniknęła. Miejsca: <code>platform/components/core/services/control/src/routes/plans.mjs</code> (ścieżka tworzenia), planfile.</p>
+<h3>2.4 Vault zaśmiecony wpisami testowymi</h3>
+<p>~90 wpisów <code>plesk-mailbox-*@example.test</code> obok produkcyjnych credentiali. Utrudnia audyt, zwiększa powierzchnię pomyłki.</p>
+<p><strong>Propozycja:</strong> flaga/prefiks <code>test:</code> przy tworzeniu + komenda czyszcząca wpisy z originem <code>example.test</code> (browser-agent vault API).</p>
+<h3>2.5 ✅ Uruchamianie stacka ze snapshotu <code>/tmp</code> — WYKONANE</h3>
+<p><code>docker compose --env-file .env up -d</code> z katalogu <code>platform/</code> przejęło cały projekt: <code>docker compose ls</code> pokazuje wyłącznie ścieżki repo, zero bind-mountów <code>/tmp</code> na wszystkich kontenerach, 17/17 usług up (15 z healthcheckiem — healthy). Smoke test <code>ask</code> po przejęciu: <code>plan_hash</code> bez zmian. Klasa awarii „ENOENT po czyszczeniu <code>/tmp</code>&quot; zamknięta.</p>
+<h3>2.6 Kontenery spoza platformy w restart-loopie</h3>
+<p><code>service-manager-pilot-backend</code>, <code>service-id-pilot-backend</code> (<code>~/github/maskservice/c2004</code>), <code>proxym</code> (<code>~/github/semcod/proxym</code>). Poza zakresem subactora, ale szumią w monitoringu hosta.</p>
+<h3>2.7 ✅ Preflight live-publish oparty o <code>pgrep</code> — WYKONANE</h3>
+<p><code>platform/bin/subactor-live-publish.sh</code> sprawdza teraz HTTP <code>GET /health</code> urirun-node (konfigurowalne <code>URIRUN_NODE_HEALTH_URL</code>, domyślnie <code>http://127.0.0.1:18765/health</code>) zamiast <code>pgrep</code> po procesie w kontenerze.</p>
+<hr />
+<h2>3. Co wymaga modularyzacji</h2>
+<h3>3.1 ✅ <code>platform/config/intent-packs/registry.mjs</code> — WYKONANE (podział na 4 moduły)</h3>
+<p>Zrealizowany podział (registry.mjs pozostał fasadą z niezmienionym publicznym API — wszyscy importerzy działają bez zmian):</p>
+<table>
+<thead><tr><th>Moduł</th><th>Odpowiedzialność</th></tr></thead>
+<tbody>
+<tr><td><code>pack-loader.mjs</code></td><td>load + shape assert + shadow gating</td></tr>
+<tr><td><code>phrase-matcher.mjs</code></td><td>dopasowanie NL: tier substring + tier tokenowy (patrz 2.2)</td></tr>
+<tr><td><code>docroot-rules.mjs</code></td><td>branche domain/remote_path wyniesione verbatim (parytet <code>plan_hash</code>)</td></tr>
+<tr><td><code>derived-artifacts.mjs</code></td><td>nlp-uri entries, render YAML, LLM slice, compare recipe/step-catalog</td></tr>
+</tbody></table>
+<p><em>Pozostało (TODO w <code>docroot-rules.mjs</code>):</em> przenieść reguły per-domain do danych packów i domykać generyczną <code>docrootConvention</code> z <code>site-publish-resolver.mjs</code> — wtedy żadna nazwa domeny nie będzie hardkodowana w kodzie.</p>
+<h3>3.2 <code>platform/bin/subactor</code> (764 linie bash + inline Python)</h3>
+<p>Cała orkiestracja ask→ticket→plan→grant→apply w jednym skrypcie; nietestowalne, logika lifecycle zduplikowana z orchestratorem.</p>
+<p><strong>Propozycja:</strong> logika do <code>orchestrator/</code> (Node, testy jednostkowe), bash jako cienki wrapper na REST.</p>
+<h3>3.3 ✅ Zduplikowana logika ścieżek konfiguracji — WYKONANE</h3>
+<p>Nowy <code>platform/components/core/services/control/src/config-paths.mjs</code> (<code>configFileCandidates</code> / <code>resolveConfigFile</code> / <code>packsDirCandidates</code>) zastąpił 4 kopie łańcucha „env → CONTROL_CONFIG_DIR → umbrella → submodule pin&quot; w: <code>docs-sync-intent.mjs</code>, <code>www-sync-intent.mjs</code>, <code>site-resource-resolver.mjs</code>, <code>publish-autonomy.mjs</code>. Testy control 113 (0 fail), e2e bez zmian <code>plan_hash</code>.</p>
+<h3>3.4 Legacy intent-moduły vs packi</h3>
+<p><code>docs-sync-intent.mjs</code> i <code>www-sync-intent.mjs</code> duplikują logikę packów; dual-run <code>shadow</code> (PR10) miał je wygasić. Utrzymywanie obu = dryf (realny przypadek: stash „docs-sync-intent stage bind&quot; z 2026-07-18 vs HEAD).</p>
+<p><strong>Propozycja:</strong> po okresie shadow bez mismatchy → <code>INTENT_PACK_DUAL_RUN=off</code> i usunięcie obu plików.</p>
+<h3>3.5 ✅ Podwójny <code>agents/nlp-uri-phrases.yaml</code> — WYKONANE</h3>
+<p><code>platform/scripts/sync-intent-pack-derived.mjs</code> pisze/sprawdza teraz <strong>oba</strong> cele: umbrella <code>agents/nlp-uri-phrases.yaml</code> i pinowany klon <code>platform/components/agents/nlp-uri-phrases.yaml</code> (dedup po realpath — w testowej umbrelli to ten sam plik przez symlink). Koniec ręcznego <code>cp</code> po zmianie packów.</p>
+<h3>3.6 ✅ Generyczne id kroków w step-catalog — WYKONANE</h3>
+<p><code>create_site_publish_ticket</code> (<code>platform/config/step-catalog.json</code>) i recipe <code>platform/config/recipes/site-publish.urirun.json</code> używają neutralnych id: <code>site-methods</code> / <code>site-sync-dry-run</code> / <code>site-sync-apply</code>. Zweryfikowane e2e — nowe id płyną przez ticket → orchestrator → urirun, dry-run identyczny (22 pliki identity). Uwaga operacyjna: control cache'uje step-catalog — po zmianie katalogu potrzebny restart <code>hr-control</code>.</p>
+<h3>3.7 ✅ „Zduplikowany&quot; testkit — BŁĘDNA DIAGNOZA, wycofane</h3>
+<p>Root <code>testkit/</code> to osobne repo git (komponent umbrelli), a <code>platform/components/testkit</code> to jego pinowany submoduł — identyczność plików jest <strong>zamierzona</strong> i pilnowana przez <code>platform/scripts/check-component-drift.mjs</code> (ten sam wzorzec co <code>agents</code>, <code>runtime</code>, <code>contracts</code>…). Symlink/usunięcie zepsułoby drift-gate. Pozycja zamknięta bez zmian.</p>
+<hr />
+<h2>4. Rekomendowana kolejność</h2>
+<ol>
+<li>~~<strong>Commit promocji site-publish</strong> (2.1)~~ ✅ wykonane 2026-07-19</li>
+<li>~~<strong>Przejęcie całego stacka z repo</strong> (2.5)~~ ✅ wykonane 2026-07-19</li>
+<li>~~<strong><code>phrase-matcher</code></strong> (2.2 + 3.1)~~ ✅ wykonane 2026-07-19 (bez wpięcia ekstraktora slotów — opcjonalne follow-up)</li>
+<li><strong>Dedup ticketów / SELFDEV TTL</strong> (2.3) — zatrzymuje puchnięcie backlogu. <strong>← następny krok</strong></li>
+<li>Pozostałe: 2.4 (vault cleanup), 2.6 (kontenery obce), 2.7 (<code>pgrep</code>→HTTP), 3.2 (CLI→orchestrator), 3.4 (wygaszenie legacy intents), 3.5 (podwójny YAML), 3.6 (neutralne id kroków), 3.7 (zduplikowany testkit) — osobne, małe PR-y.</li>
+</ol>
+<h2>5. Wykonane commity (2026-07-19)</h2>
+<table>
+<thead><tr><th>Repo</th><th>Commit</th><th>Zakres</th></tr></thead>
+<tbody>
+<tr><td><code>platform</code></td><td>„refactoring&quot; (użytkownik) + <code>chore: pin agents submodule at 712bc45</code></td><td>promocja site-publish, pin agents</td></tr>
+<tr><td><code>platform</code></td><td><code>refactor(intent-packs): split registry.mjs into focused modules + token-tier phrase matching</code> (<code>eb70758</code>)</td><td>3.1 + 2.2</td></tr>
+<tr><td><code>platform/components/core</code></td><td><code>refactor(control): extract shared config-paths.mjs (4 copies -&gt; 1)</code> (<code>1d6133d</code>) + bump pinu w platform (<code>7e1b2b0</code>)</td><td>3.3</td></tr>
+<tr><td><code>platform/components/contracts</code></td><td><code>chore: ignore __pycache__</code> (<code>96b7245</code>)</td><td>porządek</td></tr>
+</tbody></table>
+<h2>6. Prace domknięte po refaktoryzacji (2026-07-19, wieczór)</h2>
+<p>Zmiany niezwiązane bezpośrednio ze ścieżką publikacji Plesk, ale dotykające tej samej platformy:</p>
+<h3>6.1 Subject-bound digital twin</h3>
+<p>Scope <code>digital-twin:self:read</code> jest dostępny w presetach tokenów i E2E. Endpoint <code>GET /api/digital-twin/self</code> wiąże widok z principalem tokenu, sprawdza AQL <code>twin://actor/digital-twin/query/self</code>, zwraca wyłącznie projekcję read-only i nie udostępnia lookupu cross-subject.</p>
+<p>Test live potwierdził tę izolację dla 8/8 zarejestrowanych aktorów. Implementacja: Core <code>075fc0f</code>, kontrakty <code>a47e34b</code>, testkit <code>4959261</code>, pin platformy <code>fb741ec</code>.</p>
+<h3>6.2 Tooling env-contract</h3>
+<p><code>platform/scripts/sync-env-contract.mjs</code> i npm script <strong><code>env:sync</code></strong> wciągają aktualny <code>.env.example</code> jako <code>template</code> do <code>platform/config/env-contract.json</code>. <code>.env.example</code> jest SSOT, a kontrakt jest generowany i kontrolowany przez test driftu.</p>
+<p>Konfiguracja Foundera nie zakłada już nazwy kontraktu w kodzie Organization Core: <code>FOUNDER_PRINCIPAL</code> i <code>FOUNDER_CONTRACT_NAME</code> są częścią kontraktu środowiska.</p>
+<h3>6.3 Plan „constitutional continuity&quot; (skomitowane w <code>docs</code>)</h3>
+<p>Commit <code>88702f5 docs: plan constitutional continuity rollout</code>: nowy <code>docs/plans/resolution-continuity-implementation.md</code> + aktualizacja sprintu <code>.planfile/sprints/current.yaml</code> (±130 linii). Kierunek: ciągłość decyzyjna organizacji (digital twin) — spójny z nowym scope z 6.1.</p>
+<h3>6.4 Wpływ na rekomendowaną kolejność</h3>
+<p>Bez zmian dla punktu 4 (dedup ticketów / SELFDEV TTL — nadal następny krok ścieżki Plesk). Punkty 6.1 i 6.2 są już skomitowane, przetestowane w pełnej bramce platformy i uruchomione w lokalnym trybie live/mock.</p>
+<h2>7. Druga fala refaktoryzacji + analiza prac digital-twin (2026-07-19, noc)</h2>
+<h3>7.1 ✅ Wykonane pozycje refaktoryzacji (commit <code>f59a463</code> w <code>platform</code>)</h3>
+<table>
+<thead><tr><th>Pozycja</th><th>Zmiana</th></tr></thead>
+<tbody>
+<tr><td>2.7</td><td>preflight live-publish przez HTTP <code>/health</code> zamiast <code>pgrep</code></td></tr>
+<tr><td>3.6</td><td>neutralne id kroków <code>site-*</code> w step-catalog + recipe (zweryfikowane e2e)</td></tr>
+<tr><td>3.5</td><td><code>sync-intent-pack-derived.mjs</code> pisze YAML do umbrelli <strong>i</strong> <code>components/agents</code></td></tr>
+<tr><td>3.7</td><td>zamknięte jako błędna diagnoza (wzorzec komponent-umbrella + pin z drift-gate)</td></tr>
+</tbody></table>
+<h3>7.2 Równoległe prace foundera (w locie, częściowo nieskomitowane w <code>platform</code>)</h3>
+<ul>
+<li><strong>Domeny zewnętrzne w generycznym packu:</strong> <code>components/core</code> commit <code>5a10aee feat(control): authorize exact project domains</code> — <code>validateDomain</code> przyjmuje <code>allowedDomains</code> (dokładne dopasowania z rejestru) obok sufiksu <code>.subactor.com</code>.</li>
+<li><strong>Nowy zasób <code>workspace:autonomicznosc-pl</code></strong> → <code>projekty/02_landing</code> → domena <strong><code>autonomicznosc.pl</code></strong>; mounty w <code>hr-control</code> i <code>urirun-node</code> (<code>docker-compose.yml</code>), kontrakt autonomii rozszerzony o <code>autonomicznosc.pl</code> (<code>config/autonomy-contracts.json</code>). <strong>E2E zweryfikowane: dry-run przechodzi</strong> (docroot <code>/autonomicznosc.pl</code>, source spoza konwencji <code>&lt;name&gt;.subactor.com</code> — pierwszy taki przypadek).</li>
+<li><strong>Warstwa digital-twin authority:</strong> <code>runtime/src/autonomy-contract.mjs</code> — reguła <code>authorized_human_capability_required</code> dla kroków <code>human_approval: true</code>; commity <code>fix(core): reject expired digital twin authority</code>, <code>feat(platform): pin constitutional authority and digital twin</code>.</li>
+</ul>
+<h3>7.3 ⚠ Obserwacja: lifecycle dry-run pod nową regułą authority</h3>
+<p>Po włączeniu reguły <strong>każdy</strong> przebieg <code>ask ... --execute</code> (www, identity, autonomicznosc — wszystkie packi) kończy się <code>⚑ urirun / authorized_human_capability_required</code> zamiast <code>✓ dry_run_passed</code>, mimo że sam dry-run <strong>succeeded</strong>. Krok apply (<code>human_approval: true</code>, w trybie <code>--execute</code> celowo niewykonywany) jest teraz oceniany jako <code>required</code> i „resolving&quot;, a każdy przebieg dopisuje się do SELFDEV-074.</p>
+<p><strong>Propozycja (obszar prac foundera — do decyzji):</strong> w trybie dry-run krok z <code>human_approval: true</code> powinien rozwiązywać się jako <code>skipped_dry_run</code> (nie <code>required</code>), np. w <code>orchestrator/src/pipeline.mjs</code> (okolice linii 126) albo przez warunek <code>plan.dry_run</code> w regule <code>runtime/src/autonomy-contract.mjs:161</code>. Wtedy <code>--execute</code> wraca do czystego <code>dry_run_passed</code>, a wymóg autorytetu digital-twin obowiązuje tam, gdzie ma sens — przy realnym apply.</p>
+<h3>7.4 Zaktualizowany plan refaktoryzacji (pozostałe)</h3>
+<table>
+<thead><tr><th>#</th><th>Pozycja</th><th>Status / warunek wejścia</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>2.3 dedup ticketów / SELFDEV TTL</strong></td><td>następny krok; poczekać aż osiądą zmiany foundera w <code>components/core</code> (kolizja plików)</td></tr>
+<tr><td>2</td><td>7.3 dry-run vs authority rule</td><td>decyzja foundera (propozycja wyżej)</td></tr>
+<tr><td>3</td><td>3.1-TODO: reguły docroot do danych packów</td><td>po stabilizacji <code>allowedDomains</code> — obejmie też domeny zewnętrzne</td></tr>
+<tr><td>4</td><td>3.4 wygaszenie legacy intents (<code>docs/www-sync-intent.mjs</code>)</td><td>wymaga przeniesienia paraphrase-matchera do packów (pokrycie, którego packi nie mają) + <code>INTENT_PACK_DUAL_RUN=off</code> po okresie shadow bez mismatchy</td></tr>
+<tr><td>5</td><td>3.2 CLI (764 linie bash) → orchestrator</td><td>największy; osobny PR, fazami: najpierw lifecycle-mapping, potem grant/lease</td></tr>
+<tr><td>6</td><td>2.4 vault cleanup (<code>example.test</code>)</td><td>małe, niezależne</td></tr>
+<tr><td>7</td><td>2.6 obce kontenery w restart-loopie</td><td>poza subactorem (c2004, proxym)</td></tr>
+</tbody></table>
+<h2>8. Ekstrakcja paczek workspace — koniec kodu w <code>config/</code> (2026-07-19, noc)</h2>
+<p>Trzecia fala refaktoryzacji: <code>platform/config/</code> przewoziło <strong>ponad 1000 linii wykonywalnego kodu</strong> (<code>intent-packs/*.mjs</code>, <code>connector-capabilities/preflight.mjs</code>). Kod wyprowadzony do dwóch nowych paczek workspace w nowym katalogu <code>platform/packages/</code>:</p>
+<table>
+<thead><tr><th>Paczka</th><th>Zawartość (kod)</th><th>Dane zostają w</th></tr></thead>
+<tbody>
+<tr><td><strong><code>@subactor/intent-packs</code></strong></td><td><code>pack-loader</code>, <code>phrase-matcher</code>, <code>docroot-rules</code>, <code>derived-artifacts</code>, <code>registry</code> (fasada)</td><td><code>platform/config/intent-packs/*.v1.json</code></td></tr>
+<tr><td><strong><code>@subactor/capability-preflight</code></strong></td><td>bramka preflight (607 linii), zależy od <code>@subactor/intent-packs</code></td><td><code>platform/config/connector-capabilities/</code> (catalog, fixtures, <code>*.uri.capability.yaml</code>)</td></tr>
+</tbody></table>
+<p>Mechanika kompatybilności:</p>
+<ul>
+<li><code>config/intent-packs/registry.mjs</code> i <code>config/connector-capabilities/preflight.mjs</code> to <strong>1-linijkowe shimy</strong> (<code>export * from &quot;@subactor/…&quot;</code>) — dynamiczne importy po <code>packsDir</code>/<code>configDir</code> (<code>intent-pack-bridge.mjs</code>, <code>capability-gate/config.mjs</code>) oraz względne importy testów działają bez zmian w obu układach (repo i kontener).</li>
+<li>Ścieżki do DANYCH rozwiązywane kandydatami: <code>INTENT_PACKS_DIR</code> / <code>CONNECTOR_CAPABILITIES_DIR</code> → <code>CONTROL_CONFIG_DIR</code> → układ repo (<code>packages/*/src → ../../../config/…</code>).</li>
+<li>Obraz control: <code>COPY packages/* → /app/node_modules/@subactor/*</code> (ten sam wzorzec co <code>@subactor/runtime</code>); workspaces w <code>platform/package.json</code> linkują lokalnie.</li>
+</ul>
+<p>Weryfikacja: intent-packs 30/30 · control <strong>158/158</strong> · modele OK · <code>capability-preflight.mjs --json</code> ok · rebuild kontenera + e2e <code>ask</code> (intent www, dry-run identity 22 pliki — wyniki identyczne). Commity: <code>build(control): bake @subactor/* into image</code> (components/core) + <code>refactor(platform): extract @subactor/intent-packs + @subactor/capability-preflight workspace packages</code>.</p>
+<p><strong>Efekt architektoniczny:</strong> <code>config/</code> to od teraz wyłącznie dane (JSON/YAML + 2 shimy), kod ma wersjonowane paczki z jawnymi zależnościami — gotowe do wydzielenia jako osobne repo komponentu (wzorzec umbrella+pin), jeśli koru ma się dalej odchudzać.</p>
+<h3>8.1 Dalsze kandydatury do paczek (kolejność wg zysku)</h3>
+<table>
+<thead><tr><th>Kandydat</th><th>Dziś</th><th>Docelowo</th></tr></thead>
+<tbody>
+<tr><td>logika lifecycle/grant/lease z <code>platform/bin/subactor</code> (764 linie bash)</td><td>bash + inline Python</td><td><code>@subactor/founder-cli</code> (Node) — pokrywa się z 3.2</td></tr>
+<tr><td><code>site-*</code> moduły control (<code>site-intent-extractor</code>, <code>site-publish-resolver</code>, <code>site-resource-resolver</code>, <code>site-domain-validator</code>, <code>publish-source-guard</code>, ~800 linii)</td><td>luzem w <code>services/control/src</code></td><td><code>@subactor/site-publish</code> — po osadzeniu prac digital-twin</td></tr>
+<tr><td><code>capability-gate/</code> + <code>capability-preflight-gate.mjs</code></td><td>w control</td><td>dołączyć do <code>@subactor/capability-preflight</code></td></tr>
+<tr><td><code>delegation-*</code> (~390 linii)</td><td>w control</td><td><code>@subactor/delegation</code></td></tr>
+</tbody></table>
+<h2>9. Końcowa weryfikacja live (2026-07-19)</h2>
+<h3>9.1 Publikacja <code>projekty/*</code></h3>
+<p>Rzeczywisty profil integracyjny uwierzytelnił się do Plesk pod <code>https://prototypowanie.pl:8443</code>. Query capability potwierdziło dostęp do subskrypcji <code>subactor.com</code>, ale panel nie zwrócił limitu domen. Dlatego wynik pozostaje bezpiecznie negatywny: <code>can_create_domain=false</code>, <code>reason=subscription_domain_limit_unknown</code>.</p>
+<p>SFTP i FTP przeszły capability check z lease'ów vault. Dry-run dla <code>workspace:autonomicznosc-pl</code> (<code>projekty/02_landing</code>) i domeny <code>autonomicznosc.pl</code> zakończył się powodzeniem: 8 plików, 32 934 B, docroot <code>/autonomicznosc.pl</code>, plan hash <code>8cec51c...</code>. Nie wykonano mutacji produkcyjnej.</p>
+<p>Blokery apply:</p>
+<ul>
+<li>brak wiarygodnego limitu/pojemności domen subskrypcji;</li>
+<li><code>autonomicznosc.pl</code> nie ma rekordu A kierującego do docelowego hosta;</li>
+<li>brak potwierdzonego TLS dla nowej domeny;</li>
+<li>master mutation gate oraz <code>PLESK_SYNC_APPLY</code> pozostają wyłączone;</li>
+<li>brak lease <code>plesk-runtime</code> dla administracyjnego API (SFTP/FTP są dostępne).</li>
+</ul>
+<h3>9.2 Kanały komunikacji</h3>
+<p><code>autonomy-chat-agent</code> działa jako usługa i przeszedł test end-to-end: wiadomość foundera w prywatnym portalu została pobrana przez outbound relay, obsłużona przez kontrolowany endpoint LLM i zwrócona wyłącznie do rozmowy tego użytkownika. <code>chat.subactor.com</code> nie jest jeszcze wdrożonym portalem: obecny DNS kieruje do GitHub Pages, a certyfikat nie pasuje do tej nazwy. Bezpieczny układ docelowy to portal na publicznym hostingu oraz wychodzący relay do agenta — bez reverse proxy z Internetu do lokalnego hosta.</p>
+<p>Kanał e-mail jest <code>waiting_credentials</code>: brakuje lease'ów <code>agent-mailbox-runtime</code> i <code>smtp-system-email</code>; lokalny Mailpit nie wysyła poczty do foundera. Powstał osobny <code>urirun-connector-twilio-voice</code> (5/5 testów, widoczny w live node: 539 tras). Doctor działa fail-closed i zwraca <code>live_ready=false</code>: nadal brakuje konta/numeru, vault credentials, allowlisty numeru, polityki podstawy kontaktu/zgody i callbacka weryfikującego podpis Twilio. Nie wykonano realnego połączenia.</p>
+<h3>9.3 Ocena autonomii</h3>
+<p>System kontynuuje zadania niezablokowane i ma działający kanał czatu, lecz nie spełnia jeszcze definicji pełnej autonomii operacyjnej. Brakujące elementy to: ważny authority graph i kontrakty następców, redundantne kanały komunikacji, prekontraktowani dostawcy, aktywne budżety continuity, provider replacement, obserwowalny Resolution Continuity Engine oraz zamknięte bramki DNS/TLS/Plesk.</p>
+<h2>10. <code>@subactor/founder-cli</code> — CLI foundera przeniesione do paczki (2026-07-19, noc)</h2>
+<p>Zrealizowany punkt <strong>3.2</strong> (największa pozycja modularyzacji): <code>platform/bin/subactor</code> — 764 linie basha z wklejkami Pythona — jest teraz <strong>20-liniowym wrapperem</strong> wykonującym <code>packages/founder-cli/bin/subactor.mjs</code>.</p>
+<table>
+<thead><tr><th>Moduł paczki</th><th>Odpowiedzialność</th></tr></thead>
+<tbody>
+<tr><td><code>config.mjs</code></td><td>env-file, URL-e, token, ANSI</td></tr>
+<tr><td><code>api.mjs</code></td><td>fetch z parytetem curl (body przy 4xx/5xx) + semantyka <code>jget</code></td></tr>
+<tr><td><code>lifecycle.mjs</code></td><td><strong>czyste</strong> mapowanie stage→lifecycle + ekstraktory dry-run/error/grant (testy jednostkowe 5/5)</td></tr>
+<tr><td><code>prompts.mjs</code></td><td><code>confirmYn</code> (honoruje <code>--yes</code>/TTY) vs <code>confirmYnInteractive</code> (bramka produkcyjna — nigdy z flagi)</td></tr>
+<tr><td><code>apply-grant.mjs</code> / <code>mutate-lease.mjs</code></td><td>grant związany z <code>plan_hash</code>, lease TTL przez docker-exec z cleanupem na exit/INT/TERM</td></tr>
+<tr><td><code>improvement.mjs</code></td><td>klasyfikator defektów + relay do subactor-improvement</td></tr>
+<tr><td><code>orchestrator-runner.mjs</code></td><td>przebiegi ticketów, <code>/tmp/subactor-ask-last-orch.json</code></td></tr>
+<tr><td><code>ask.mjs</code> / <code>commands.mjs</code></td><td>pełna powierzchnia komend</td></tr>
+</tbody></table>
+<p>Zweryfikowane e2e na żywej platformie: <code>help/health/status/tickets/plans/get</code>, <code>ask --json</code>, <code>ask --execute --yes</code> — format wyjścia, semantyka bramek i pliki uboczne identyczne z bashem (łącznie z zapisem ticketu SELFDEV przy znanym ostrzeżeniu authority z §7.3). Zysk: logika lifecycle/grant/lease jest wreszcie testowalna jednostkowo i re-używalna (orchestrator może importować <code>@subactor/founder-cli/lifecycle</code> zamiast duplikować mapowanie).</p>
+<p><strong>Stan planu paczek (§8.1):</strong> founder-cli ✅ · site-publish → po osadzeniu digital-twin · capability-gate merge → otwarte · delegation → otwarte.</p>
+<h3>10.1 ⚠→✅ Regresja migracji CLI i jej domknięcie</h3>
+<p>Port founder-cli <strong>złamał bramkę governance</strong> <code>platform/test/founder-cli-confirmation.test.mjs</code> (test interaktywnego apply stubował stary przepływ, a analiza statyczna czytała usunięty bash) — regresja niewykryta, bo weryfikacja portu objęła <code>make test-intent-packs</code> + testy paczki, a <strong>nie pełne <code>npm test</code> platformy</strong>. Wykrył ją równoległy przegląd foundera; bramka zmigrowana do modułu Node w <code>628b78c test(platform): migrate founder CLI governance gate coverage</code> (zmiana wyłącznie w teście — źródła paczki bez zmian; niezmienniki: odmowa produkcji nie wydaje grantu ani lease, <code>--execute</code> pozostaje dry-run-only, cleanup lease na sygnałach).</p>
+<p>Po migracji: bramka 2/2, <strong>pełne <code>npm test</code> platformy: 7 suite'ów, 0 fail</strong>.</p>
+<p><strong>Lekcja procesowa:</strong> każda zmiana w <code>platform/</code> przechodzi pełne <code>npm test</code> (meta+runtime+contracts+testkit+site-generator+core+connector-lan) przed commitem — selektywne suite'y nie wystarczają przy przenoszeniu kodu między warstwami.</p>
+<h2>10. Rdzeń capability-gate w <code>@subactor/capability-preflight</code> (2026-07-19, noc)</h2>
+<p>Domknięta trzecia pozycja z §8.1: <code>capability-gate/{config,pack-loader,preflight-run}.mjs</code> + orkiestrator <code>gateResolvedPackCapabilities</code> przeniesione z control do paczki (<code>packages/capability-preflight/src/gate.mjs</code>, export <code>./gate</code>). Uproszczenia przy okazji:</p>
+<ul>
+<li><code>loadPreflight</code> importuje <code>../preflight.mjs</code> <strong>bezpośrednio</strong> — dynamiczna rezolucja po config-dir istniała tylko dlatego, że kod jechał w montowanym katalogu config;</li>
+<li>pack-loader bramki używa <code>@subactor/intent-packs</code> wprost (koniec <code>pathToFileURL(packsDir/registry.mjs)</code>).</li>
+</ul>
+<p>W control zostały: 14-liniowy shim <code>capability-preflight-gate.mjs</code> (API dla routes/testów bez zmian) i <code>capability-gate/denial.mjs</code> — formatka odpowiedzi HTTP ze słownikiem lifecycle, celowo poza paczką (paczka jest właścicielem <strong>decyzji</strong>, nie jej renderowania).</p>
+<p>Weryfikacja (z lekcją z §9.1): control 158/158 · <strong>pełne <code>npm test</code>: 7 suite'ów, 0 fail</strong> · rebuild kontenera + e2e <code>ask</code> www → <code>preflight_passed</code> przez spakowaną bramkę.</p>
+<p><strong>Stan planu paczek (§8.1):</strong> founder-cli ✅ · capability-gate merge ✅ · site-publish → po osadzeniu digital-twin · delegation → otwarte.</p>
+</main>
+</body>
+</html>

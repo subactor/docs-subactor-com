@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-001: Zakres autonomii — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../../index.html">subactor/docs</a></nav>
+<h1>ADR-001: Zakres autonomii</h1>
+<ul>
+<li><strong>Status:</strong> Accepted  </li>
+<li><strong>Data:</strong> 2026-07-18  </li>
+<li><strong>Kontekst:</strong> <a href="../autonomy-recommended-solution.html"><code>../autonomy-recommended-solution.md</code></a> §2.1  </li>
+<li><strong>Pytanie statusowe:</strong> „Scope dowolne zadanie vs katalog intent packs?” — <strong>rozstrzygnięte</strong></li>
+</ul>
+<h2>Decyzja</h2>
+<p>System autonomicznie wykonuje zadania z <strong>wersjonowanego katalogu intent packów</strong> (<code>platform/config/intent-packs/</code>).</p>
+<p>LLM może:</p>
+<ul>
+<li>wybrać istniejący pack (<code>pack_id</code>),</li>
+<li>wypełnić dozwolone parametry (situation slots z <code>situation_schema</code>).</li>
+</ul>
+<p>LLM <strong>nie może</strong>:</p>
+<ul>
+<li>tworzyć URI,</li>
+<li>wybierać transportów,</li>
+<li>wybierać identyfikatorów vault,</li>
+<li>definiować polityk wykonania (<code>on_fail</code>, timeout, retry).</li>
+</ul>
+<p>„Dowolne zadanie” = dowolna kompozycja <strong>zatwierdzonych</strong> zdolności, nie dowolny kod ani operacja wymyślona przez model.</p>
+<h3>CURRENT vs TARGET</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td>CURRENT</td><td>Pack registry + pack-first control/agents resolvers; derived phrases/LLM/step sync; dual-run via <code>INTENT_PACK_DUAL_RUN</code> (default <code>shadow</code>)</td></tr>
+<tr><td>TARGET</td><td>Pack jedynym SSOT wiring; zero dual-run; Planfile generowany z packa</td></tr>
+<tr><td>LEGACY</td><td>Planfile imports ręczne; cold FALLBACK_PHRASES; dual-run <code>on</code> for mismatch debug</td></tr>
+</tbody></table>
+<h2>Konsekwencje</h2>
+<ul>
+<li>Intent pack = SSOT celu; AQL contract = SSOT autoryzacji (pack <strong>nie</strong> zawiera <code>ALLOW</code>).</li>
+<li>Nowy cel = nowy pack + review governance (HITL), nie free-form LLM.</li>
+<li>Align z <a href="../intent-orchestration-and-fallbacks.html"><code>../intent-orchestration-and-fallbacks.md</code></a>.</li>
+</ul>
+</main>
+</body>
+</html>

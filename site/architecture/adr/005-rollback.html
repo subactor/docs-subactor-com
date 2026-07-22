@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-005: Rollback i failure semantics — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../../index.html">subactor/docs</a></nav>
+<h1>ADR-005: Rollback i failure semantics</h1>
+<ul>
+<li><strong>Status:</strong> Accepted  </li>
+<li><strong>Data:</strong> 2026-07-18  </li>
+<li><strong>Kontekst:</strong> <a href="../autonomy-recommended-solution.html"><code>../autonomy-recommended-solution.md</code></a> §5, §8, §11  </li>
+<li><strong>Pytanie statusowe:</strong> „Rollback / failure semantics?” — <strong>rozstrzygnięte</strong></li>
+</ul>
+<h2>Decyzja</h2>
+<ol>
+<li><strong>Deploy release-based</strong> — nie destrukcyjny sync do aktywnego <code>/httpdocs</code>; aktywacja atomowa (<code>current</code> / <code>previous</code>) — <strong>CURRENT (PR7)</strong>.</li>
+<li><strong>Recipe policy</strong> (<code>on_fail</code>): <code>halt</code> (domyślne, legacy) \| <code>continue</code> \| <code>ticket</code> \| <code>rollback</code>.</li>
+<li><strong>Dwa osobne procesy rollbacku:</strong></li>
+<ul>
+<li><strong>Treść / release:</strong> <code>activate(previous_release)</code> → verify (PR8 publish-verify) → <code>rolled_back</code> (+ ticket).</li>
+<li><strong>DNS / boundary:</strong> przywrócenie poprzedniego <em>desired</em> DNS (HITL) — <strong>nie</strong> mylić z content rollback.</li>
+</ul>
+<li>Stany planu bogatsze niż boolean: m.in. <code>applied_unverified</code>, <code>rolled_back</code>, <code>rollback_failed</code>, <code>needs_human</code>, <code>ticket_failed</code>.</li>
+</ol>
+<h3>CURRENT (orchestrator PR7)</h3>
+<ul>
+<li><code>on_fail: rollback</code> wykonuje kompensację: alias <code>release-rollback</code> →</li>
+</ul>
+<p><code>plesk://host/site/command/release-rollback</code> (lub <code>compensationRunner</code> / <code>compensation_uri</code>).</p>
+<ul>
+<li>Sukces kompensacji → <code>stage: rolled_back</code>, <strong><code>ok: false</code></strong> (nie udawać completed).</li>
+<li>Brak targetu/runnera lub wyczerpane retry (max 3, backoff 0/1s/3s) → <code>rollback_failed</code>.</li>
+<li>Aktywacja: <code>PLESK_RELEASE_ACTIVATION=auto|symlink|pointer</code> (Plesk docroot API nie zakładane).</li>
+</ul>
+<h3><code>rollback_failed</code></h3>
+<p>Gdy compensation niedostępna, connector niedostępny, lub verify po rollbacku fail:</p>
+<ol>
+<li>Ustaw <code>rollback_failed</code> (plan <strong>nie</strong> <code>completed</code>, <strong>nie</strong> ciche <code>ok: true</code>).</li>
+<li><strong>Retry content rollback:</strong> max <strong>2</strong> dodatkowe próby <code>activate(previous)</code> z backoff (1s / 3s) — tylko gdy release API dostępne.</li>
+<li>Po wyczerpaniu → <strong>critical ticket</strong> (<code>needs_human</code>, label <code>rollback_failed</code>) z <code>release_id</code> / <code>previous_release</code> / ostatnim błędem — <strong>bez sekretów</strong>.</li>
+<li>DNS rollback <strong>nie</strong> jest automatyczną konsekwencją <code>rollback_failed</code> treści.</li>
+</ol>
+<h3>GitHub Pages vs last_known_good</h3>
+<p><strong>GitHub Pages nie jest healthy <code>last_known_good</code></strong> dla treści wdrożonej na Plesk:</p>
+<ul>
+<li>DNS→Pages przywraca <em>inny</em> origin (często starą/inną treść).</li>
+<li>Do czasu cutoveru na Plesku: traktować Pages wyłącznie jako możliwy <strong>DNS emergency</strong> (boundary HITL), nie jako content rollback. Fingerprint verify (PR8) jest dostępny jako capability; live cutover = PR9.</li>
+</ul>
+<h2>Konsekwencje</h2>
+<ul>
+<li>Connector = właściciel transportu i rollbacku technicznego (PR7).</li>
+<li>Orchestrator = semantyka <code>on_fail</code> / zależności; nie wolno oznaczać planu <code>completed</code> po nieudanym ticket/rollback.</li>
+</ul>
+</main>
+</body>
+</html>

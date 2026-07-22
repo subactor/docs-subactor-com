@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audyt i naprawa Planfile HTTP `127.0.0.1:8765` — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Audyt i naprawa Planfile HTTP <code>127.0.0.1:8765</code></h1>
+<p>Data: 2026-07-20 Ticket nadrzędny: <code>PLF-580</code> Zakres URI: <code>http://127.0.0.1:8765/**</code></p>
+<h2>Wynik</h2>
+<p>Planfile działa poprawnie na porcie <code>8765</code> po przebudowie kontenera. Produkcyjna macierz kontrolna zakończyła się wynikiem <strong>44/44</strong>, test przeglądarkowy nie wykazał błędów konsoli ani nieudanych żądań, a pełny zestaw testów źródłowych zakończył się wynikiem <strong>257 passed, 6 skipped</strong>.</p>
+<p>Ticket <code>PLF-580</code> powstał przed rozpoczęciem operacji i zawiera AQL, EQL, OQL oraz URI. Kontrolowane tickety <code>PLF-581</code>, <code>PLF-582</code> i <code>PLF-583</code> służyły wyłącznie do testów lifecycle/UI i zostały usunięte po weryfikacji. Pusty sprint testowy <code>plf580-http-audit</code> oraz jego mirror zostały również usunięte po sprawdzeniu zawartości.</p>
+<h2>Znalezione i naprawione problemy</h2>
+<ol>
+<li><strong>Odczyt powodował mutację.</strong> Samo otwarcie szczegółów interaktywnego ticketu automatycznie uruchamiało <code>/start</code> i zmieniało <code>ready/open</code> na <code>running/in_progress</code>. Usunięto automatyczny start. Uruchomienie jest teraz możliwe wyłącznie przez jawny przycisk <strong>Start work</strong>.</li>
+<li><strong>Dashboard ukrywał rekordy.</strong> Lista była bez komunikatu obcinana do 80 ticketów. Limit usunięto, dodano licznik widocznych rekordów. Test przeglądarkowy wyrenderował wszystkie 532 z 532 rekordów obecnych w chwili próby.</li>
+<li><strong>Niespójna wersja.</strong> OpenAPI publikowało <code>0.3.0</code>, a <code>/health</code> <code>0.1.117</code>. Oba źródła zwracają teraz <code>0.1.117</code> z jednego źródła wersji pakietu.</li>
+<li><strong>Parametr <code>limit</code> był ignorowany.</strong> Klient sterujący wywoływał <code>/tickets?limit=1000</code>, ale API ignorowało parametr. Dodano walidowane <code>limit</code> i <code>offset</code> oraz nagłówki <code>X-Total-Count</code> i <code>X-Result-Count</code>.</li>
+<li><strong><code>/ready</code> tworzył sprzeczny lifecycle.</strong> Po retry pozostawał <code>status=in_progress</code>, stare przypisanie i stare czasy wykonania. Przejście <code>ready</code> atomowo przywraca teraz <code>status=open</code> i czyści claim oraz czasy poprzedniej próby.</li>
+<li><strong><code>/move</code> kończył się HTTP 500.</strong> API, DSL, CLI i MCP odwoływały się do nieistniejącej metody magazynu. Dodano atomowe przenoszenie między sprintami, historię <code>move_ticket</code>, rollback przy błędzie i walidację identyfikatora sprintu.</li>
+<li><strong>Możliwy path traversal przez nazwę sprintu.</strong> Wartości typu <code>../../escape</code> są teraz odrzucane kodem 422 przed dostępem do systemu plików.</li>
+<li><strong><code>/sprints</code> czytał nieaktualne źródło.</strong> Endpoint szukał starego <code>planfile.yaml</code> i zwracał pustą listę. Teraz czyta kanoniczne <code>.planfile/sprints/*.yaml</code>, podaje stabilny identyfikator pliku i <code>ticket_count</code>; POST tworzy sprint atomowo i odrzuca duplikaty.</li>
+<li><strong>Runtime Context analizował pusty wolumen.</strong> Kontener widział <code>/workspace</code>, więc raportował 0 usług i 0 workspace'ów. Repozytorium jest teraz zamontowane read-only jako <code>/project</code>; wynik produkcyjny: <code>subactor</code>, 31 usług i 13 workspace'ów.</li>
+<li><strong>Runtime Context mógł ujawniać wartości environment.</strong> API zwraca teraz tylko nazwy kluczy z wartością <code>&lt;redacted&gt;</code>.</li>
+<li><strong>GET zapisywał dane.</strong> Pierwszy odczyt konfiguracji Runtime Context tworzył plik. GET jest teraz bez efektów ubocznych; zapis PUT jest atomowy.</li>
+<li><strong>Brak obsługi błędów UI.</strong> Dashboard i Runtime Context sprawdzają <code>response.ok</code>, walidują typ listy ticketów i pokazują błąd zamiast generować nieobsłużony wyjątek Promise.</li>
+<li><strong>CORS był otwarty dla każdej strony.</strong> Domyślnie nie jest emitowane zezwolenie cross-origin. Opcjonalna, jawna allowlista jest dostępna przez <code>PLANFILE_CORS_ORIGINS</code> i została dodana zarówno do <code>.env</code>, jak i <code>.env.example</code>.</li>
+<li><strong>Mutowalne wartości domyślne modeli request.</strong> Zastąpiono je <code>default_factory</code>, aby instancje requestów nie współdzieliły kolekcji.</li>
+</ol>
+<h2>Weryfikacja live</h2>
+<p>Sprawdzono dashboard, Swagger, ReDoc, health, OpenAPI, tickets list/detail/next/create/update/delete, pełny lifecycle (<code>claim</code>, <code>start</code>, <code>input-required</code>, <code>respond</code>, <code>fail</code>, <code>ready</code>, <code>complete</code>, <code>done</code>), przenoszenie sprintu, delegację, events, DSL, Runtime Context, redirect panelu dostępu, favicon oraz WebSocket <code>/ws</code>.</p>
+<p>Najważniejsze wyniki:</p>
+<ul>
+<li>macierz HTTP/WS: <code>44/44</code>;</li>
+<li><code>/health</code>: <code>status=ok</code>, <code>version=0.1.117</code>;</li>
+<li>OpenAPI: 26 ścieżek, 32 operacje, wersja <code>0.1.117</code>;</li>
+<li>przeglądarka: 0 błędów konsoli, 0 nieudanych requestów;</li>
+<li>odczyt szczegółów: <code>open/ready → open/ready</code>;</li>
+<li>jawny start: <code>open/ready → in_progress/running</code>;</li>
+<li>lista: wszystkie <code>532/532</code> ticketów w chwili testu;</li>
+<li>Runtime Context: 31 usług, 13 workspace'ów, wartości environment zredagowane;</li>
+<li>pełne testy: <code>257 passed, 6 skipped</code>;</li>
+<li>lint zmienionych modułów: bez błędów;</li>
+<li>logi kontenera po finalnej przebudowie: bez <code>ERROR</code>, tracebacków i odpowiedzi 500.</li>
+</ul>
+<h2>Zachowanie świadome i pozostałe ograniczenia</h2>
+<ul>
+<li><code>GET/PATCH /yaml</code> zwraca 404 w tej instancji, ponieważ repozytorium nie zawiera opcjonalnego, legacy <code>planfile.yaml</code>. Kanoniczne tickety i sprinty działają przez <code>.planfile/</code>, <code>/tickets</code> i <code>/sprints</code>; 404 nie wpływa na kolejkę.</li>
+<li>Port <code>8765</code> pozostaje lokalnym panelem operatorskim bez logowania aplikacyjnego i jest publikowany wyłącznie na <code>127.0.0.1</code>. Nie należy wystawiać go bezpośrednio publicznie; interfej Foundera pozostaje na uwierzytelnionym panelu <code>8091</code>.</li>
+<li>Historia <code>/events</code> jest buforem pamięci procesu i znika po restarcie. Trwałym źródłem audytu pozostają historia i outputs ticketu Planfile.</li>
+<li>Runtime Context uczciwie pokazuje <code>pipelines=0</code> i <code>topology_nodes=0</code>, ponieważ w zamontowanym źródle nie ma głównego <code>Taskfile.yml</code> ani wygenerowanego <code>.testql/topology.json</code>.</li>
+</ul>
+<h2>Pliki objęte zmianą</h2>
+<ul>
+<li>Planfile: <code>planfile/__init__.py</code>, <code>planfile/api/server.py</code>, <code>planfile/core/store.py</code>, <code>planfile/runtime_context.py</code>;</li>
+<li>testy: <code>tests/test_ticket_api_events.py</code>, <code>tests/test_ticket_execution.py</code>, <code>tests/test_store_concurrency.py</code>;</li>
+<li>wdrożenie: <code>platform/docker-compose.yml</code>, <code>platform/.env</code>, <code>platform/.env.example</code>.</li>
+</ul>
+<p>Istniejące przed audytem zmiany współbieżności w <code>planfile/core/store.py</code> i <code>tests/test_store_concurrency.py</code> zostały zachowane; nowe testy i implementacja zostały do nich dopisane bez cofania wcześniejszej pracy.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Architektura: intent packs, orkiestracja i fallbacki zdolności — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Architektura: intent packs, orkiestracja i fallbacki zdolności</h1>
+<p><strong>Status:</strong> dokument projektowy (analiza + propozycja + <strong>aktualizacja stanu 2026-07-18</strong>). Część warstw jest już zaimplementowana — patrz <a href="./autonomy-implementation-status.html"><code>autonomy-implementation-status.md</code></a> (CURRENT / TARGET / LEGACY). Ten plik pozostaje SSOT modelu; nie czytać §1/§2 jako „nic nie istnieje”, jeśli status mówi inaczej.</p>
+<p><strong>Kanoniczny:</strong> tak — ten plik jest SSOT dla modelu. Krótka nota planowa: <a href="../plans/intent-capability-fallbacks.html"><code>../plans/intent-capability-fallbacks.md</code></a>.</p>
+<p><strong>Zakres:</strong> wzorce generyczne dla dowolnej domeny (publish, DNS, vault, HTTP check, GitHub, …). Przykład <strong>docs → Plesk httpdocs</strong> jest tylko ilustracją.</p>
+<p><strong>Powiązane:</strong> <a href="./autonomy-recommended-solution.html"><code>autonomy-recommended-solution.md</code></a> (rekomendacja + ADR), <a href="./adr/README.html"><code>adr/README.md</code></a>, <a href="../plans/autonomy-implementation-roadmap.html"><code>../plans/autonomy-implementation-roadmap.md</code></a>, <a href="./autonomy-ops-status-and-open-questions.html"><code>autonomy-ops-status-and-open-questions.md</code></a>, <a href="../autonomy-cli-runbook.html"><code>../autonomy-cli-runbook.md</code></a>, <a href="../plans/docs-subactor-com-publish.html"><code>../plans/docs-subactor-com-publish.md</code></a>, <a href="../../platform/docs/URI_PROCESS_AUTONOMY.html"><code>../../platform/docs/URI_PROCESS_AUTONOMY.md</code></a>, <a href="../../orchestrator/README.html"><code>../../orchestrator/README.md</code></a>.</p>
+<hr />
+<h2>1. Problem</h2>
+<p>Łatwość intencji (NL → działający plan) historycznie blokowały:</p>
+<ol>
+<li><strong>N-krotne ręczne podpinanie tego samego celu</strong> — frazy, katalog LLM, model AQL,</li>
+</ol>
+<p>step-catalog, recipe <code>*.urirun.json</code>, import Planfile, <code>ALLOW MODEL</code> / <code>ALLOW URI_PROCESS</code>. <strong>CURRENT (PR2–3 partial):</strong> pack registry + derived sync redukują drift; Planfile imports nadal ręczne; dual-run do PR10.</p>
+<ol>
+<li><strong>Liniowy fail-fast</strong> w <code>runTask</code> — pierwsza porażka urirun kończy cały plan.</li>
+</ol>
+<p><strong>CURRENT (PR4 partial):</strong> <code>on_fail</code> / <code>optional</code> / retry / timeout działają; brak pełnego <code>try_in_order</code>; rollback = stub → <code>rollback_failed</code>.</p>
+<ol>
+<li><strong>Mylenie warstw fallbacku</strong> — transport (SFTP→FTP) należy do konektora;</li>
+</ol>
+<p>alternatywy między URI do recipes/orchestratora; wybór nazwanego intentu do pack/phrase.</p>
+<p>Bez SSOT dla <strong>named intent</strong> i <strong>policy między krokami</strong> każdy nowy cel powiela wiring. <strong>Nie</strong> jest już prawdą „brak packów / tylko fail-fast” — patrz evidence.</p>
+<hr />
+<h2>2. Stan obecny (zweryfikowany w kodzie)</h2>
+<h3>2.1 Pipeline warstwowy (już dobry)</h3>
+<pre><code class="language-text">NL (subactor ask / subactor-run --nl)
+  → intent (phrase map | OpenRouter via llm-gateway)     [nazwa modelu + situation]
+  → Planfile ticket / recipe  (uri_processes)            [plan]
+  → @subactor/orchestrator runTask                       [topo + AQL + OQL intent]
+  → urirun-node → connector                              [HOW]</code></pre>
+<p>Rozdział <strong>Contract AQL (WHO) / OQL (WHAT) / URI (HOW)</strong> jest spójny z <code>URI_PROCESS_AUTONOMY.md</code> i README orchestratora. OpenRouter ma być **tylko intentem** — upload, vault lease, DNS, HTTP check zostają deterministyczne.</p>
+<h3>2.2 Diagram architektury (as-is)</h3>
+<pre><code class="language-mermaid">flowchart TB
+  subgraph entry [Wejście]
+    NL[NL: subactor ask / subactor-run]
+    Recipe[Recipe *.urirun.json]
+    Ticket[Planfile ticket.inputs.uri_processes]
+  end
+
+  subgraph intent [Warstwa intent — dziś rozproszona]
+    PhrasesYAML[agents/nlp-uri-phrases.yaml]
+    InlinePHRASES[docs/www-sync-intent.mjs PHRASES]
+    LlmCatalog[platform/config/llm-organization-intents.json]
+    AqlModel[contracts/models/*.pl.aql]
+    OpenRouter[OpenRouter via llm-gateway /intent/hr]
+  end
+
+  subgraph plan [Plan — dziś zduplikowany]
+    StepCat[platform/config/step-catalog.json]
+    UriRun[uri_processes w recipe]
+    PfImport[.planfile/imports/*]
+  end
+
+  subgraph orch [Orchestrator]
+    Resolve[resolvePlan]
+    RunTask[&quot;runTask: topo-order, halt on first urirun fail&quot;]
+    AqlGate[checkAqlActor]
+    OqlRec[&quot;OQL-shaped process.run record&quot;]
+  end
+
+  subgraph how [Wykonanie]
+    Urirun[urirun-node POST /run]
+    Conn[Connectors: plesk://, github://, …]
+    CapFb[&quot;Capability fallback wewnątrz URI\nnp. transport=auto SFTP→FTP&quot;]
+  end
+
+  NL --&gt; PhrasesYAML
+  NL --&gt; InlinePHRASES
+  InlinePHRASES --&gt;|trafienie| AqlModel
+  PhrasesYAML --&gt;|orchestrator NL| Resolve
+  NL --&gt;|brak frazy| OpenRouter
+  OpenRouter --&gt; LlmCatalog
+  LlmCatalog --&gt; AqlModel
+  AqlModel --&gt; StepCat
+  StepCat --&gt; Ticket
+  Recipe --&gt; Resolve
+  Ticket --&gt; Resolve
+  Resolve --&gt; RunTask
+  RunTask --&gt; AqlGate --&gt; OqlRec --&gt; Urirun --&gt; Conn
+  Conn --&gt; CapFb</code></pre>
+<h3>2.3 Co jest zduplikowane</h3>
+<table>
+<thead><tr><th>Warstwa</th><th>Lokalizacje (przykład publish)</th><th>Objaw / stan</th></tr></thead>
+<tbody>
+<tr><td>Frazy NL</td><td><strong>SSOT:</strong> <code>platform/config/intent-packs/*.v1.json</code>; generated <code>agents/nlp-uri-phrases.yaml</code>; cold fallback w <code>*-sync-intent.mjs</code></td><td>Unit 3: pack-first; YAML generowany (<code>sync-intent-pack-derived.mjs</code>)</td></tr>
+<tr><td>Katalog LLM</td><td><code>llm-organization-intents.json</code> fields dla docs/www <strong>align</strong> z pack <code>situation_schema</code></td><td>Sync/check w skrypcie derived</td></tr>
+<tr><td>Model AQL</td><td><code>contracts/models/docs-httpdocs-sync.pl.aql</code></td><td>Wskazuje jeden <code>MODUŁY</code></td></tr>
+<tr><td>Step catalog</td><td><code>create_*_httpdocs_sync_ticket</code> + pole <code>recipe</code> → recipe path</td><td>Skeleton check vs recipe; Planfile imports nadal osobna kopia</td></tr>
+<tr><td>Recipe</td><td><code>docs/deployment/docs-httpdocs-sync.urirun.json</code></td><td>Linearna lista; brak policy</td></tr>
+<tr><td>Planfile</td><td><code>.planfile/imports/*</code> + <code>*.planfile-ticket.yaml</code></td><td>Nadal kopia kroków (nie auto-rewrite w unit 3)</td></tr>
+<tr><td>Allow</td><td><code>ALLOW MODEL</code> / <code>ALLOW URI_PROCESS</code> w contract AQL</td><td>Łatwo zapomnieć przy nowym modelu</td></tr>
+</tbody></table>
+<p>Ścieżka kontrolna (<code>core/.../routes/llm.mjs</code>): <strong>pack-first</strong> dla docs/www, potem cold legacy adapters; <code>pack_compare</code> dual-run do PR10. Unika misroute do HR/onboarding.</p>
+<h3>2.4 Co już działa dobrze</h3>
+<table>
+<thead><tr><th>Element</th><th>Dowód w kodzie / docs</th><th>Dlaczego zostawić</th></tr></thead>
+<tbody>
+<tr><td>Cienki orchestrator</td><td><code>orchestrator/src/pipeline.mjs</code> <code>runTask</code></td><td>Glue bez połykania AQL/OQL/connectorów</td></tr>
+<tr><td>Topo <code>depends_on</code></td><td><code>orderSteps</code> w tym samym pliku</td><td>Solidna baza pod policy</td></tr>
+<tr><td>Dry-run domyślnie</td><td><code>dryRun !== false</code>; payload <code>apply: false</code></td><td>Bezpieczeństwo</td></tr>
+<tr><td>Brama zapisu</td><td><code>PLESK_SYNC_APPLY=1</code> w bridge / docs</td><td>Nie przez LLM</td></tr>
+<tr><td>Allowlist źródeł</td><td>basename <code>www</code> \</td><td><code>docs</code> lub <code>PLESK_SYNC_ALLOWED_SOURCES</code></td><td>Deterministyczna polityka</td></tr>
+<tr><td>Phrase map lokalna</td><td><code>agents/services/nlp-uri-map.mjs</code></td><td>Bez patchowania desktop nlp2uri</td></tr>
+<tr><td>Transport jako capability</td><td>Bridge przekazuje `transport: args.transport \</td><td>\</td><td>&quot;auto&quot;` do urirun; docs: SFTP preferred, FTP fallback</td><td><strong>Nie</strong> dublować jako dwa kroki sync w recipe</td></tr>
+<tr><td>Contract allow</td><td><code>project-operator.contract.aql</code>: <code>ALLOW MODEL docs-httpdocs-sync.pl.aql</code>, <code>ALLOW URI_PROCESS plesk://*</code></td><td>WHO poza prose recipe</td></tr>
+<tr><td>OQL cienkie</td><td>Orchestrator zapisuje <code>process.run</code>, nie magazynuje grafu policy</td><td>OQL ≠ SSOT fallbacków</td></tr>
+</tbody></table>
+<p><strong>Uwaga faktograficzna:</strong> nota planowa wspomina <code>_TRANSPORT_ORDER</code> w <code>urirun-connector-plesk</code>. W tym checkout umbrella <strong>nie ma</strong> zainstalowanego pakietu Python <code>urirun_connector_plesk</code> (connector jest zewnętrzny względem repo <code>docs</code>/<code>orchestrator</code>). Wzorzec „fallback transportu w konektorze” jest potwierdzony przez bridge (<code>transport=auto</code>) i dokumentację platformy; konkretna nazwa symbolu może żyć tylko na hoście urirun-node.</p>
+<h3>2.5 Gap analysis</h3>
+<table>
+<thead><tr><th>Gap</th><th>Dziś</th><th>Skutek</th></tr></thead>
+<tbody>
+<tr><td>Brak intent pack SSOT</td><td>N plików na jeden cel</td><td>Drift fraz / pól / allow</td></tr>
+<tr><td><code>UriProcess</code> bez policy</td><td>Typedef: <code>id, uri, payload, depends_on, human_approval</code></td><td>Brak <code>optional</code> / <code>on_fail</code></td></tr>
+<tr><td>Fail-fast w <code>runTask</code></td><td><code>if (!urirun.ok) return {ok: false, …}</code></td><td>Preflight opcjonalny zabija sync</td></tr>
+<tr><td>Brak <code>try_in_order</code> między URI</td><td>—</td><td>Cross-URI fallback nie da się zadeklarować</td></tr>
+<tr><td>LLM invent risk</td><td>Free-form intent → HR default</td><td>Misroute bez phrase hit</td></tr>
+<tr><td>NL w orchestratorze</td><td>Phrase → <strong>jeden</strong> URI (nie pełna recipe)</td><td><code>subactor-run --nl</code> ≠ pełny ticket multi-step</td></tr>
+<tr><td>Timeout / ops</td><td>Osobny problem (np. apply ~30s)</td><td>Nie należy do LLM</td></tr>
+</tbody></table>
+<hr />
+<h2>3. Proponowany model (generyczny)</h2>
+<p>Trzy warstwy odpowiedzialności — <strong>nie mieszać</strong>:</p>
+<pre><code class="language-text">Intent pack (SSOT: „co użytkownik miał na myśli”)
+    → ekspanduje → phrases + AQL stub + llm fields + step-catalog ref + ALLOW hints
+Recipe policy graph (SSOT: „jak kroki / zdolności się mają”)
+    → ekspanduje → flat uri_processes (kompatybilne z Planfile) lub native interpreter
+Connector capability (SSOT: „który transport/tool wewnątrz jednego URI”)
+    → np. transport=auto, vault lease retry — nigdy wymyślane przez LLM</code></pre>
+<h3>3.1 Intent packs (SSOT)</h3>
+<p>Jeden plik = jeden nazwany cel założyciela / bota (domenowo-agnostyczny).</p>
+<p><strong>Proponowana lokalizacja:</strong> <code>platform/config/intent-packs/&lt;id&gt;.json</code> (ew. YAML). Loader współdzielony przez:</p>
+<ul>
+<li>control (<code>/api/llm/intent</code> — zamiast osobnych <code>*-sync-intent.mjs</code>),</li>
+<li><code>agents/nlp-uri-map</code> (generacja lub import fraz),</li>
+<li>opcjonalnie generator stubów AQL / wpisów <code>llm-organization-intents</code>.</li>
+</ul>
+<p><strong>Szkic schematu:</strong></p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;site-httpdocs-publish&quot;,
+  &quot;version&quot;: 1,
+  &quot;aql_model&quot;: &quot;site-httpdocs-sync.pl.aql&quot;,
+  &quot;label&quot;: { &quot;pl&quot;: &quot;Publikacja katalogu → httpdocs&quot;, &quot;en&quot;: &quot;Publish tree to httpdocs&quot; },
+  &quot;phrases&quot;: [
+    &quot;opublikuj {{source_basename}} na {{domain}}&quot;,
+    &quot;sync {{source_basename}} to {{domain}}&quot;
+  ],
+  &quot;situation_schema&quot;: {
+    &quot;source_dir&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;required&quot;: true },
+    &quot;host&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;required&quot;: true },
+    &quot;domain&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;required&quot;: true },
+    &quot;remote_path&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;default&quot;: &quot;/httpdocs&quot; }
+  },
+  &quot;situation_defaults&quot;: {},
+  &quot;recipe&quot;: &quot;path/to/site-httpdocs-sync.urirun.json&quot;,
+  &quot;step_module&quot;: &quot;create_site_httpdocs_sync_ticket&quot;,
+  &quot;allow&quot;: {
+    &quot;models&quot;: [&quot;site-httpdocs-sync.pl.aql&quot;],
+    &quot;uri_processes&quot;: [&quot;plesk://*&quot;]
+  },
+  &quot;llm&quot;: {
+    &quot;may_select&quot;: true,
+    &quot;may_fill_situation&quot;: true,
+    &quot;must_not&quot;: [&quot;invent_uri_processes&quot;, &quot;choose_transport&quot;, &quot;choose_vault_ids&quot;]
+  }
+}</code></pre>
+<p><strong>Ilustracja (docs publish — nie kanon domeny):</strong> pack <code>docs-httpdocs-publish</code> z <code>situation_defaults.domain = docs.subactor.com</code> i recipe docs. Ten sam kształt obsługuje <code>www-httpdocs-publish</code>, <code>vault-entry-ensure</code>, <code>dns-record-ensure</code>, <code>https-health-check</code> itd.</p>
+<h3>3.2 Recipe policy (zdolności, nie transporty)</h3>
+<p>Rozszerzyć <code>UriProcess</code> (orchestrator <code>normalizeStep</code> + Planfile inputs) o pola policy. Domyślne zachowanie = dzisiejszy fail-fast (<code>on_fail: halt</code>).</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;capability-plan-example&quot;,
+  &quot;situation&quot;: { &quot;domain&quot;: &quot;example.com&quot;, &quot;source_dir&quot;: &quot;/path/to/tree&quot; },
+  &quot;uri_processes&quot;: [
+    {
+      &quot;id&quot;: &quot;ensure-preflight&quot;,
+      &quot;uri&quot;: &quot;example://host/resource/query/preflight&quot;,
+      &quot;optional&quot;: true,
+      &quot;on_fail&quot;: &quot;continue&quot;
+    },
+    {
+      &quot;id&quot;: &quot;ensure-credential&quot;,
+      &quot;uri&quot;: &quot;example://host/cred/command/ensure&quot;,
+      &quot;depends_on&quot;: [&quot;ensure-preflight&quot;],
+      &quot;on_fail&quot;: &quot;halt&quot;,
+      &quot;human_approval&quot;: true
+    },
+    {
+      &quot;id&quot;: &quot;mutate&quot;,
+      &quot;uri&quot;: &quot;example://host/resource/command/apply&quot;,
+      &quot;payload&quot;: { &quot;mode&quot;: &quot;auto&quot; },
+      &quot;depends_on&quot;: [&quot;ensure-credential&quot;],
+      &quot;on_fail&quot;: &quot;halt&quot;
+    },
+    {
+      &quot;id&quot;: &quot;verify&quot;,
+      &quot;uri&quot;: &quot;httpscheck://example.com/&quot;,
+      &quot;depends_on&quot;: [&quot;mutate&quot;],
+      &quot;optional&quot;: true,
+      &quot;on_fail&quot;: &quot;ticket&quot;
+    }
+  ]
+}</code></pre>
+<p><strong>Semantyka dla <code>runTask</code>:</strong></p>
+<table>
+<thead><tr><th>Pole</th><th>Znaczenie</th></tr></thead>
+<tbody>
+<tr><td><code>on_fail: halt</code></td><td>Jak dziś (domyślne)</td></tr>
+<tr><td><code>on_fail: continue</code></td><td>Zapisz failure; kontynuuj kroki, które nie wymagają sukcesu tego id</td></tr>
+<tr><td><code>on_fail: ticket</code></td><td>Eskaluj / otwórz Planfile ticket; zatrzymaj łańcuch live</td></tr>
+<tr><td><code>optional: true</code></td><td>Failure nie failuje całego planu (<code>ok</code> planu może być true z warnings)</td></tr>
+<tr><td><code>strategy: try_in_order</code></td><td>Grupa <strong>cross-URI</strong> alternatyw tej samej <em>zdolności</em> (np. dwa różne ensure URI)</td></tr>
+</tbody></table>
+<p><strong>Anti-pattern:</strong> dwa kroki sync „SFTP” i „FTP” w recipe. To jest <strong>connector capability</strong> (<code>payload.transport: &quot;auto&quot;</code>), nie recipe fallback.</p>
+<p><strong>Ilustracja docs:</strong> ensure-ftpuser → methods → dry-run → apply → optional https-check; <code>transport: auto</code> w payload sync.</p>
+<h3>3.3 Connector-level capability fallbacks</h3>
+<p>Każdy konektor deklaruje (w kodzie / metadanych URI), które warianty narzędzia próbuje wewnętrznie:</p>
+<table>
+<thead><tr><th>Capability</th><th>Przykład URI</th><th>Fallback w konektorze</th><th>Nie w recipe</th></tr></thead>
+<tbody>
+<tr><td>File transport</td><td><code>plesk://…/site/command/sync</code></td><td><code>transport=auto</code> → SFTP, potem FTP</td><td>Osobne kroki SFTP/FTP</td></tr>
+<tr><td>Cred materialization</td><td><code>…/ftpuser/command/ensure</code></td><td>Retry / create-if-missing wg policy konektora</td><td>—</td></tr>
+<tr><td>HTTP verify</td><td><code>httpscheck://…</code></td><td>Follow redirects, TLS mode flags</td><td>—</td></tr>
+<tr><td>DNS</td><td><code>dns://…</code></td><td>Provider A → B tylko jeśli ten sam scheme to wspiera</td><td>Cross-provider = recipe <code>try_in_order</code></td></tr>
+</tbody></table>
+<p>Reguła: <strong>LLM nie wybiera</strong> wariantu transportu ani vault id ad hoc. Situation slots mogą wskazać <em>preferencję</em> tylko jeśli schema packa na to pozwala i kontrakt to dopuszcza.</p>
+<h3>3.4 Rola LLM (OpenRouter)</h3>
+<table>
+<thead><tr><th>OpenRouter <strong>może</strong></th><th>OpenRouter <strong>nie może</strong></th></tr></thead>
+<tbody>
+<tr><td>Wybrać <strong>named</strong> intent pack / AQL model id</td><td>Wynaleźć URI DAG ani łańcuch fallbacków</td></tr>
+<tr><td>Wypełnić situation slots ze schematu packa</td><td>Wybrać SFTP vs FTP / dowolne vault ids</td></tr>
+<tr><td>Rozłożyć multi-goal NL na <strong>uporządkowaną listę pack ids</strong></td><td>Wywołać konektory ani widzieć sekretów</td></tr>
+<tr><td>Opcjonalnie: treść dokumentów (osobny content step)</td><td>Być bramką <code>apply</code> / <code>PLESK_SYNC_*</code></td></tr>
+</tbody></table>
+<p>Kolejność resolve intentu (propozycja):</p>
+<ol>
+<li>Deterministic phrase map z intent packs (jak dziś docs/www przed OpenRouter).</li>
+<li>LLM → pack id + situation (gdy brak frazy).</li>
+<li>Recipe + orchestrator + connectors wykonują resztę.</li>
+</ol>
+<hr />
+<h2>4. Extension points w istniejącym stacku</h2>
+<p>Nie proponujemy nowego runtime ani języka. Punkty rozszerzeń:</p>
+<table>
+<thead><tr><th>Pakiet / ścieżka</th><th>Zmiana</th><th>Uwagi</th></tr></thead>
+<tbody>
+<tr><td><code>platform/config/intent-packs/</code></td><td>Nowe pliki + JSON Schema</td><td>SSOT; platform montuje config</td></tr>
+<tr><td><code>agents/services/nlp-uri-map.mjs</code></td><td>Load phrases z packów (lub wygenerowany YAML)</td><td>Zostaje lokalny resolver</td></tr>
+<tr><td><code>core/.../routes/llm.mjs</code></td><td>Generic <code>resolveIntentPack(text)</code> zamiast N× <code>*-sync-intent.mjs</code></td><td>Jedna ścieżka przed <code>/intent/hr</code></td></tr>
+<tr><td><code>platform/config/llm-organization-intents.json</code></td><td>Generowane / sync z pack <code>situation_schema</code></td><td>Unika driftu pól</td></tr>
+<tr><td><code>contracts/models/*.pl.aql</code></td><td>Cienki model per pack; <code>MODUŁY</code> → step_module</td><td>WHO nadal w contract AQL</td></tr>
+<tr><td><code>platform/config/step-catalog.json</code></td><td>Generowane z <code>recipe</code> lub referencja do recipe path</td><td>Jedna kopia <code>uri_processes</code></td></tr>
+<tr><td><code>orchestrator/src/resolve-plan.mjs</code></td><td><code>normalizeStep</code>: <code>optional</code>, <code>on_fail</code>, <code>strategy</code></td><td>Kompat: brak pól = halt</td></tr>
+<tr><td><code>orchestrator/src/pipeline.mjs</code></td><td>Interpreter policy w pętli <code>runTask</code></td><td>Testy regresji obowiązkowe</td></tr>
+<tr><td><code>connectors</code> / urirun connectors</td><td>Capability fallbacks wewnątrz URI</td><td>Python/JS jak dziś</td></tr>
+<tr><td>Planfile</td><td>Import z recipe po ekspansji policy → flat list</td><td>Ticket shape bez zmian dla runnera v1</td></tr>
+<tr><td><code>testkit</code></td><td>Testy: phrase→pack, optional fail→continue, transport nie w recipe</td><td>LLM-free gdzie możliwe</td></tr>
+</tbody></table>
+<p><strong>Języki (bez zmian stacku):</strong></p>
+<ul>
+<li>Node/TS/JS — orchestrator, control, agents phrase map, bridge OQL planner.</li>
+<li>Python — urirun connectors (np. Plesk), AQL/OQL runtime.</li>
+<li>AQL — WHO + modele intentu.</li>
+<li>JSON recipes + Planfile YAML — plany wykonawcze.</li>
+</ul>
+<hr />
+<h2>5. Szkice migracji</h2>
+<h3>Faza 0 — dokumentacja (ten dokument)</h3>
+<p>Ustalenie warstw i non-goals. <strong>Bez</strong> zmian runnera.</p>
+<h3>Faza 1 — Intent pack SSOT (niski risk)</h3>
+<ol>
+<li>Dodać schema + 1–2 packi (np. <code>www-httpdocs-publish</code>, <code>docs-httpdocs-publish</code>).</li>
+<li>Control i phrase map czytają packi; usunąć dual-maintained <code>PHRASES</code> arrays.</li>
+<li>Test: fraza → ten sam <code>model_name</code> / situation co dziś.</li>
+<li>Opcjonalnie: generator syncujący <code>llm-organization-intents</code> fields.</li>
+</ol>
+<h3>Faza 2 — Recipe policy w orchestratorze</h3>
+<ol>
+<li>Rozszerzyć <code>normalizeStep</code> + semantyka <code>runTask</code> (<code>optional</code>, <code>on_fail</code>) — <strong>done (PR4)</strong>.</li>
+<li>Test regresji: opcjonalny preflight fail → kolejne kroki nadal biegną — <strong>done</strong>.</li>
+<li>Domyślnie <code>halt</code> — istniejące recipes bez zmian zachowania — <strong>done</strong>.</li>
+<li><code>on_fail: ticket</code> (hook) + timeout/retry — <strong>done</strong>; <code>strategy: try_in_order</code> — później.</li>
+</ol>
+<h3>Faza 3 — Deduplikacja planów</h3>
+<ol>
+<li>Step-catalog i Planfile import generowane z recipe (lub recipe jest jedynym SSOT,</li>
+</ol>
+<p>catalog tylko wskazuje ścieżkę).</p>
+<ol>
+<li>AQL <code>MODUŁY</code> wskazuje step_module z packa.</li>
+</ol>
+<h3>Faza 4 — Capability metadata (opcjonalnie)</h3>
+<p>Konektory eksportują deklarację „wspierane fallbacki wewnętrzne” (dla UI / audit), bez przenoszenia ich do recipes.</p>
+<p><strong>Kolejność ważna:</strong> najpierw pack SSOT (usuwa ból wiring), potem policy runner (usuwa ból fail-fast). Nie odwrotnie i nie „mądrzejszy LLM planner” jako pierwszy krok.</p>
+<hr />
+<h2>6. Non-goals</h2>
+<ul>
+<li>Nowy język planowania / osobny „agent framework” poza <code>@subactor/orchestrator</code>.</li>
+<li>Przeniesienie fallbacku transportu (SFTP/FTP) do recipe jako dwóch kroków sync.</li>
+<li>Pozwolenie OpenRouter na emitowanie dowolnych <code>uri_processes</code>.</li>
+<li>Magazynowanie grafu policy w OQL store (OQL zostaje cienkim <code>process.run</code>).</li>
+<li>Zmiana desktop nlp2uri stubs (phrase map zostaje subactor-local).</li>
+<li>Implementacja w ramach tego dokumentu (tylko analiza + propozycja).</li>
+<li>Ops-only: DNS cutover, timeouty subprocess, certyfikaty TLS — osobne bilety.</li>
+</ul>
+<hr />
+<h2>7. Kryteria akceptacji</h2>
+<table>
+<thead><tr><th>#</th><th>Kryterium</th><th>Jak sprawdzić</th></tr></thead>
+<tbody>
+<tr><td>A1</td><td>Jeden intent pack zasila frazy control + agents bez drugiej listy inline</td><td>Test: zmiana frazy w packu widoczna w obu ścieżkach</td></tr>
+<tr><td>A2</td><td>Nowy cel domenowy (nie-Plesk) da się opisać tym samym schematem packa</td><td>Pack przykładowy dla DNS lub httpscheck bez pól Plesk-only w schema</td></tr>
+<tr><td>A3</td><td><code>runTask</code> honoruje <code>optional</code> / <code>on_fail: continue</code></td><td>Test unit: fail kroku optional → plan <code>ok</code> z recorded failure</td></tr>
+<tr><td>A4</td><td>Domyślne recipes bez nowych pól zachowują fail-fast</td><td>Istniejące testy <code>pipeline.test.mjs</code> zielone</td></tr>
+<tr><td>A5</td><td>Recipe nie zawiera osobnych kroków SFTP i FTP dla sync</td><td>Review + TestQL / lint policy</td></tr>
+<tr><td>A6</td><td>LLM path bez frazy zwraca <strong>pack/model id</strong>, nie URI DAG</td><td>Kontrakt odpowiedzi <code>/api/llm/intent</code></td></tr>
+<tr><td>A7</td><td>Contract AQL nadal jedyną bramką WHO</td><td>Brak „allow” tylko w prose recipe</td></tr>
+<tr><td>A8</td><td>Dokumentacja kanoniczna wskazuje ten plik; nota planowa jest skrótem</td><td>Linki w <code>docs/README.md</code> + plans</td></tr>
+</tbody></table>
+<hr />
+<h2>8. Przykłady kontekstowo niezależne</h2>
+<h3>8.1 Publish drzewa plików (ilustracja: docs.subactor.com)</h3>
+<p>Pack → recipe: methods → dry-run → apply (<code>transport: auto</code>) → optional httpscheck. Szczegóły ops: <a href="../plans/docs-subactor-com-publish.html"><code>../plans/docs-subactor-com-publish.md</code></a>.</p>
+<h3>8.2 Ensure rekordu DNS</h3>
+<ul>
+<li>Intent: „ustaw CNAME X → Y”.</li>
+<li>Recipe: query existing → optional delete conflict (<code>on_fail: continue</code>) → apply → verify resolve.</li>
+<li>Connector: retries / provider quirks wewnątrz <code>dns://…</code>.</li>
+</ul>
+<h3>8.3 Vault entry</h3>
+<ul>
+<li>Intent: „ensure credential dla hosta Z”.</li>
+<li>Recipe: probe → ensure (<code>human_approval</code> jeśli create) → lease test.</li>
+<li>LLM wypełnia tylko <code>host</code> / <code>entry_id</code> ze schematu — nie hasło.</li>
+</ul>
+<h3>8.4 HTTP health po deployu</h3>
+<ul>
+<li>Zawsze <code>optional: true</code>, <code>on_fail: ticket</code> — deploy może być OK przy chwilowym TLS mismatch.</li>
+</ul>
+<hr />
+<h2>9. Werdykt</h2>
+<p>Łatwość intencji w Subactor to problem <strong>SSOT + właściwej warstwy fallbacku</strong>, nie problem „lepszego OpenRouter”. Istniejący stack (phrase map, AQL, recipes, <code>runTask</code>, urirun, connectors) jest właściwym miejscem rozszerzeń: <strong>intent packs</strong>, <strong>recipe policy dla zdolności</strong>, <strong>capability fallbacki w konektorach</strong>, <strong>LLM wyłącznie named intent + situation slots</strong>.</p>
+<hr />
+<h2>10. Braki → język (inventory implementacyjny)</h2>
+<p><strong>Werdykt:</strong> nie potrzeba nowego języka ani runtime. Braki to rozszerzenia istniejących formatów (JSON pack / recipe) i interpreterów (JS orchestrator, JS control/agents, Python konektor). Ops (DNS/TLS) = zero nowego kodu językowego.</p>
+<table>
+<thead><tr><th>Brak (kod/feature)</th><th>Gdzie</th><th>Język / format już używany</th><th>Dlaczego nie nowy stack</th></tr></thead>
+<tbody>
+<tr><td>Intent pack SSOT + JSON Schema + loader</td><td><code>platform/config/intent-packs/</code> (+ schema)</td><td>JSON (+ opcjonalnie YAML jak phrases)</td><td>Config platformy już montuje JSON; unika driftu N plików</td></tr>
+<tr><td>Loader packów w control (<code>resolveIntentPack</code>)</td><td><code>core/.../routes/llm.mjs</code>, <code>*-sync-intent.mjs</code> → jeden resolver</td><td>Node <code>.mjs</code></td><td><code>subactor ask</code> już bije w control LLM; zastąpić inline <code>PHRASES</code></td></tr>
+<tr><td>Phrase map z packów (nie dual list)</td><td><code>agents/services/nlp-uri-map.mjs</code></td><td>JS + generowany YAML lub bezpośredni JSON</td><td>Lokalny resolver już istnieje; desktop nlp2uri zostaje stubem</td></tr>
+<tr><td>Sync / gen <code>llm-organization-intents</code> fields</td><td><code>platform/config/llm-organization-intents.json</code></td><td>JSON (generator: Node)</td><td>Katalog LLM już JSON; pola z <code>situation_schema</code> packa</td></tr>
+<tr><td>Cienkie modele AQL per pack</td><td><code>contracts/models/*.pl.aql</code></td><td>AQL</td><td>WHO/ALLOW już w AQL; pack tylko wskazuje <code>aql_model</code></td></tr>
+<tr><td><code>UriProcess</code>: <code>optional</code>, <code>on_fail</code>, <code>strategy</code></td><td><code>orchestrator/src/resolve-plan.mjs</code> <code>normalizeStep</code></td><td>JS typedef + pola w JSON recipe</td><td>Typedef już tu; brak pól = dzisiejszy halt</td></tr>
+<tr><td>Interpreter policy w <code>runTask</code></td><td><code>orchestrator/src/pipeline.mjs</code></td><td>JS</td><td>Jedyna pętla topo; fail-fast jest tu (L115–117)</td></tr>
+<tr><td>Recipe z policy (np. optional httpscheck)</td><td><code>*.urirun.json</code> / Planfile inputs</td><td>JSON recipe / YAML ticket</td><td>Ten sam kształt <code>uri_processes</code>; ekspansja → flat dla v1</td></tr>
+<tr><td>Dedup step-catalog / Planfile z recipe</td><td><code>platform/config/step-catalog.json</code>, <code>.planfile/imports/</code></td><td>JSON / YAML (generator Node)</td><td>Katalog i importy już istnieją — generować, nie kopiować ręcznie</td></tr>
+<tr><td>NL → pełna recipe (nie jeden URI)</td><td><code>resolvePlan</code> NL path + pack→recipe</td><td>JS + JSON recipe path z packa</td><td>Dziś phrase → jeden URI; pack niesie <code>recipe</code></td></tr>
+<tr><td>Capability metadata (opcjonalnie)</td><td><code>urirun-connector-*</code></td><td>Python / JS jak dziś</td><td>Deklaracja fallbacków wewnątrz URI, nie w recipe</td></tr>
+<tr><td><code>paramiko</code> jako dep SFTP na hoście urirun</td><td>zewnętrzny <code>urirun-connector-plesk</code> (<code>[project.optional-dependencies] sftp</code>)</td><td>Python packaging (<code>pyproject.toml</code>)</td><td>Kod SFTP/<code>_TRANSPORT_ORDER</code> już jest; brak to instalacja extra, nie nowy język</td></tr>
+<tr><td>Timeout apply / exec</td><td>urirun-node / host config</td><td>config / ops</td><td>Nie należy do modelu intentu</td></tr>
+</tbody></table>
+<p><strong>Nie-kod (ops — bez nowego języka):</strong> DNS cutover <code>docs.subactor.com</code> → Plesk, cert TLS SAN, addon docroot. Live path docs: intent+recipe dry-run działają; apply pada na timeout/transport — to paramiko packaging + timeout + DNS, nie nowy planner.</p>
+</main>
+</body>
+</html>

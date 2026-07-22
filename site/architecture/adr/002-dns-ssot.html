@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-002: DNS jako SSOT — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../../index.html">subactor/docs</a></nav>
+<h1>ADR-002: DNS jako SSOT</h1>
+<ul>
+<li><strong>Status:</strong> Accepted  </li>
+<li><strong>Data:</strong> 2026-07-18  </li>
+<li><strong>Kontekst:</strong> <a href="../autonomy-recommended-solution.html"><code>../autonomy-recommended-solution.md</code></a> §2.2  </li>
+<li><strong>Pytanie statusowe:</strong> „Gdzie żyje prawda DNS/domen?” / „GitHub Pages vs Plesk?” — <strong>rozstrzygnięte</strong></li>
+</ul>
+<h2>Decyzja</h2>
+<table>
+<thead><tr><th>Warstwa</th><th>Rola</th></tr></thead>
+<tbody>
+<tr><td>Repozytorium</td><td><strong>desired state</strong> DNS (pliki CNAME / deklaracje w repo)</td></tr>
+<tr><td>Provider DNS</td><td><strong>observed state</strong> (dig / API providera)</td></tr>
+<tr><td>Connector DNS</td><td>reconcile desired ↔ observed</td></tr>
+<tr><td>Plesk</td><td>odbiorca vhost/docroot — <strong>nie</strong> SSOT DNS</td></tr>
+</tbody></table>
+<p>Dla dokumentacji publicznej (cel migracji):</p>
+<pre><code class="language-text">docs.subactor.com → Plesk</code></pre>
+<h3>CURRENT (ops)</h3>
+<ul>
+<li>Publiczny <code>docs.subactor.com</code> nadal może wskazywać <strong>GitHub Pages</strong> (mismatch względem intentu Plesk).</li>
+<li><strong>GitHub Pages nie jest healthy <code>last_known_good</code> dla treści na Plesku</strong> — rollback DNS do Pages przywraca <em>inną</em> treść/origin, nie poprzedni release Plesk.</li>
+<li>Cutover DNS = <strong>boundary-class</strong> (HITL); nie część nearest milestone (mocked safe mutate).</li>
+</ul>
+<p>Jeśli docs miałyby świadomie zostać na Pages, intent „docs → Plesk” musi zniknąć z publicznego DoD.</p>
+<h2>Konsekwencje</h2>
+<ul>
+<li>Migracja DNS to operacja <strong>boundary-class</strong> (HITL / ADR-003).</li>
+<li>Publiczny verify (ADR-004) obejmuje zgodność DNS z desired state.</li>
+<li>Rollback DNS (ADR-005) jest <strong>osobnym</strong> procesem od rollbacku treści release; Pages ≠ bezpieczny content rollback.</li>
+</ul>
+</main>
+</body>
+</html>

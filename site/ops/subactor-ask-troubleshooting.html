@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subactor ask — troubleshooting (CLI, origin, Koru) — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Subactor ask — troubleshooting (CLI, origin, Koru)</h1>
+<p><strong>Status:</strong> operacyjny (P1-4) <strong>Audience:</strong> founder CLI, ops, Koru <code>development</code> queue <strong>Powiązane:</strong> <a href="../architecture/koru-subactor-autonomy-assessment-2026-07-18.html">assessment 2026-07-18</a>, <a href="../architecture/subactor-koru-development-bridge.html">most development_defect</a></p>
+<p>Krótki przewodnik po flagach <code>subactor ask</code>, typowych pułapkach <code>remote_path</code>, weryfikacji origin bez publicznego DNS oraz klasyfikacji awarii (Koru <code>development_defect</code> vs HITL/ops).</p>
+<hr />
+<h2>1. Tabela flag CLI</h2>
+<p>Implementacja: <code>platform/bin/subactor</code> (<code>cmd_ask</code>).</p>
+<table>
+<thead><tr><th>Polecenie</th><th>Co robi</th><th>Apply produkcyjny</th><th>Uwagi</th></tr></thead>
+<tbody>
+<tr><td><code>subactor ask &quot;…&quot;</code></td><td>LLM intent → plan w Planfile; <strong>bez</strong> auto-wykonania (resolve / dry intent)</td><td><strong>Nie</strong></td><td>W TTY pyta o zatwierdzenie planu + dry-run; poza TTY plan zostaje bez wykonania</td></tr>
+<tr><td><code>subactor ask &quot;…&quot; --execute</code></td><td>Zatwierdza plan + <strong>dry-run</strong> orchestratora (<code>subactor-run</code>)</td><td><strong>Nie</strong> (apply pominięty)</td><td>W TTY po dry-run osobna brama produkcji (<code>confirm_yn_interactive</code>)</td></tr>
+<tr><td><code>subactor ask &quot;…&quot; --execute --yes</code></td><td>Jak wyżej, nieinteraktywnie (plan + dry-run)</td><td><strong>Nie</strong></td><td><code>--yes</code> omija pytania o plan i retry dry-run; <strong>nie</strong> włącza apply</td></tr>
+<tr><td><code>subactor ask &quot;…&quot; --execute --apply --yes</code></td><td>Pełna ścieżka foundera: dry-run → <strong>apply-grant</strong> → <strong>mutate lease</strong> → apply</td><td><strong>Tak</strong> (gdy grant + env OK)</td><td><code>--apply</code> implikuje <code>--execute</code>; wymagane poza TTY razem z <code>--yes</code></td></tr>
+</tbody></table>
+<h3>Co <code>--yes</code> pomija (a czego nie)</h3>
+<table>
+<thead><tr><th>Etap</th><th><code>--yes</code> / <code>--non-interactive</code></th><th>TTY bez <code>--yes</code></th></tr></thead>
+<tbody>
+<tr><td>Zatwierdzenie planu + start dry-run</td><td>Tak (gdy podano <code>--execute</code>)</td><td>Pytanie domyślnie <strong>tak</strong></td></tr>
+<tr><td>Retry po nieudanym dry-run</td><td>Tak</td><td>Pytanie</td></tr>
+<tr><td>Decyzja o apply produkcyjnym</td><td><strong>Nie</strong> — wymaga <code>--apply</code></td><td>Osobna brama interaktywna (niezależna od <code>--yes</code>)</td></tr>
+<tr><td>Retry po nieudanym apply</td><td>Tak (gdy <code>--apply --yes</code>)</td><td>Pytanie</td></tr>
+<tr><td>Wydanie apply-grant</td><td>Automatyczne po decyzji apply</td><td>Po potwierdzeniu apply</td></tr>
+</tbody></table>
+<p>Poza TTY bez <code>--execute</code>: plan pozostaje bez wykonania (komunikat: użyj <code>--execute [--yes]</code>).</p>
+<hr />
+<h2>2. Po edycji <code>step-catalog.json</code></h2>
+<p><strong>hr-control</strong> przeładowuje <code>platform/config/step-catalog.json</code> z dysku przy każdym użyciu katalogu (sprawdzenie <code>mtime</code>) — restart nie jest wymagany dla nowych planów po zapisie pliku. Regresja reload-on-read (P0-4): <code>npm run test:core</code> w repozytorium platform (w tym <code>step-catalog-loader.test.mjs</code>).</p>
+<p>W starszych wersjach (przed P0-4) katalog był trzymany w pamięci; po zmianie pliku restart był konieczny:</p>
+<pre><code class="language-bash">cd /home/tom/github/subactor/platform
+docker compose restart hr-control</code></pre>
+<p><strong>Incydent (logo):</strong> pierwszy apply trafił na <code>/httpdocs</code> zamiast <code>/logo.subactor.com</code>, bo hr-control miał <strong>stale</strong> step-catalog. Po restarcie (lub po wdrożeniu reload-on-read) pack <code>logo-httpdocs-publish</code> wiąże poprawny <code>remote_path</code>.</p>
+<hr />
+<h2>3. Pułapki <code>remote_path</code> (intent packi)</h2>
+<table>
+<thead><tr><th>Domena / pack</th><th>Oczekiwany docroot</th><th>Pułapka</th></tr></thead>
+<tbody>
+<tr><td><code>logo.subactor.com</code> (<code>logo-httpdocs-publish</code>)</td><td><code>/logo.subactor.com</code></td><td>≠ <code>/httpdocs</code>; subdomena ma osobny docroot w Plesk</td></tr>
+<tr><td><code>subactor.com</code> (<code>www-httpdocs-publish</code>)</td><td><code>/httpdocs</code></td><td>Kanoniczny www</td></tr>
+<tr><td><code>docs-stage.subactor.com</code> (<code>docs-httpdocs-publish</code>)</td><td><code>/docs-stage.subactor.com/current</code></td><td>Resolver <code>registry.mjs</code>, nie domyślny prod path</td></tr>
+<tr><td><code>docs.subactor.com</code></td><td>pack nadal może domyślnie wskazywać <code>/httpdocs</code></td><td><strong>Celowo bez apply</strong> (PR9 / DNS HITL); staging na docs-stage</td></tr>
+</tbody></table>
+<p>Błąd ścieżki to <strong>konfiguracja / cache</strong>, nie sam transport SFTP. Sprawdź pack JSON + restart hr-control przed apply.</p>
+<hr />
+<h2>4. Weryfikacja origin (gdy publiczne DNS ≠ Plesk)</h2>
+<p>Gdy Cloudflare / GitHub Pages wskazuje inaczej niż origin Plesk (<code>217.160.250.222</code>), testuj origin bez cutover:</p>
+<pre><code class="language-bash">curl -k -sS -o /dev/null -w '%{http_code}\n' \
+  --resolve logo.subactor.com:443:217.160.250.222 \
+  https://logo.subactor.com/
+
+curl -k -sS -o /dev/null -w '%{http_code}\n' \
+  --resolve docs-stage.subactor.com:443:217.160.250.222 \
+  https://docs-stage.subactor.com/</code></pre>
+<p>Oczekiwany wynik po udanym apply: <strong>200</strong> na origin. Publiczny DNS może nadal pokazywać stary front — to nie jest automatyczny dowód błędu syncu.</p>
+<hr />
+<h2>5. Koru <code>development_defect</code> vs HITL / ops</h2>
+<table>
+<thead><tr><th>Klasa</th><th>Przykładowe kody</th><th>Kolejka Koru</th><th>Działanie</th></tr></thead>
+<tbody>
+<tr><td><strong>Strukturalny / kod</strong></td><td><code>invalid_runner_response</code>, <code>plan_hash_mismatch</code>, <code>capability_unavailable</code>, <code>connector_not_implemented</code></td><td><code>development</code> → szablon repair</td><td>Patch 1–2 plików, test regresji, <strong>bez</strong> Plesk/DNS</td></tr>
+<tr><td><strong>Operacyjny / HITL</strong></td><td><code>dns_mismatch</code>, <code>credential_*</code>, <code>apply_grant_*</code> (w tym <code>apply_grant_plan_hash_mismatch</code>), <code>applied_unverified</code></td><td><strong>Poza</strong> <code>development</code></td><td>Grant, DNS, credentials, ręczna weryfikacja</td></tr>
+</tbody></table>
+<p><strong>Ważne rozróżnienie <code>plan_hash_mismatch</code>:</strong></p>
+<ul>
+<li><strong><code>plan_hash_mismatch</code></strong> (recomputed dry-run manifest ≠ bound <code>plan_hash</code>) → <strong>defekt kodu/manifestu</strong> → <code>development_defect</code> (P1-3).</li>
+<li><strong><code>apply_grant_plan_hash_mismatch</code></strong> (JWT grant vs plan) → <strong>ops/HITL</strong>, nie ticket development.</li>
+</ul>
+<p>Klasyfikacja: <code>orchestrator/src/development-defect.mjs</code> (<code>STRUCTURAL_DEFECT_CODES</code> vs <code>OPERATIONAL_BOUNDARY_CODES</code>).</p>
+<h3>Powiązane dokumenty</h3>
+<table>
+<thead><tr><th>Temat</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>Most Subactor → Koru</td><td><a href="../architecture/subactor-koru-development-bridge.html">subactor-koru-development-bridge.md</a></td></tr>
+<tr><td>Ocena autonomii (Part A/B)</td><td><a href="../architecture/koru-subactor-autonomy-assessment-2026-07-18.html">koru-subactor-autonomy-assessment-2026-07-18.md</a></td></tr>
+<tr><td>Szablon ticketu repair (Koru)</td><td><a href="https://github.com/semcod/koru/blob/main/docs/subactor-development-repair-template.md"><code>subactor-development-repair-template.md</code></a> (lokalnie: <code>~/github/semcod/koru/docs/subactor-development-repair-template.md</code>)</td></tr>
+<tr><td>Konfiguracja Koru w repo docs</td><td><a href="../koru.yaml"><code>koru.yaml</code></a></td></tr>
+</tbody></table>
+<p>Po zamknięciu SELFDEV-*: resume źródłowego ticketu (<code>subactor-run --ticket PLF-…</code>) — nadal wymaga preflight → AQL → dry-run → grant → Y/n.</p>
+<h3>Smoke test mostu (kontrakt, bez Plesk / LLM)</h3>
+<p>Lokalna regresja Subactor → Koru (klasyfikacja, upsert, szablon repair):</p>
+<pre><code class="language-bash"># Subactor (orchestrator)
+cd /home/tom/github/subactor/orchestrator &amp;&amp; npm test
+
+# Koru (cross-repo + render szablonu)
+cd /home/tom/github/semcod/koru
+SUBACTOR_ROOT=/home/tom/github/subactor \
+  python -m pytest tests/test_subactor_bridge_e2e.py tests/test_subactor_development_bridge.py -q</code></pre>
+<p>Pokrycie: <code>plan_hash_mismatch</code> → <code>development_defect</code> + <code>blocked_by</code>; <code>apply_grant_*</code> → brak ticketu development; render <code>subactor-development-repair</code> (<code>executor.kind=llm</code>, <code>promotion_mode=branch</code>, <code>declared_files</code>, <code>verify_command</code> / <code>acceptance_criteria</code> z <code>acceptance_tests</code>). Realny patch LLM i live queue intake pozostają poza tym smoke.</p>
+<h3>Real-LLM repair (Koru queue, izolowany pilot)</h3>
+<p>Jednorazowa weryfikacja pełnej ścieżki patch (OpenRouter, worktree, branch <code>koru/run-*</code>) <strong>bez</strong> Plesk/DNS/<code>subactor ask --apply</code>:</p>
+<pre><code class="language-bash">cd /home/tom/github/semcod/koru
+source .env                    # OPENROUTER_API_KEY, LLM_MODEL — nie commituj sekretów
+export KORU_LLM_SHELL_FALLBACK=0
+python scripts/subactor-development-repair-pilot.py
+# opcjonalnie: --keep /tmp/koru-subactor-pilot-fixture</code></pre>
+<p>Skrypt renderuje szablon <code>subactor-development-repair</code> (<code>executor.kind=llm</code>, <code>inputs.llm_model</code> z <code>LLM_MODEL</code>), importuje ticket do tymczasowego repo git i odpala <code>koru --queue</code> raz. Po imporcie planfile Koru <strong>hydratuje</strong> politykę patch (<code>patch_mode</code>, <code>promotion_mode=branch</code>, …) z pakietowego szablonu; <code>verify_command</code> może zostać w <code>acceptance_criteria</code>. Dla ticketów bridge zwykle <strong>nie</strong> trzeba ustawiać <code>KORU_QUEUE_*</code> — wystarczą klucze LLM w <code>.env</code>.</p>
+<p>Dokumentacja szablonu: <a href="https://github.com/semcod/koru/blob/main/docs/subactor-development-repair-template.md"><code>subactor-development-repair-template.md</code></a> (lokalnie: <code>~/github/semcod/koru/docs/subactor-development-repair-template.md</code>).</p>
+<hr />
+<h2>6. Czego nie robić</h2>
+<ol>
+<li><strong>Nie</strong> wymyślaj wolnych URI/connectorów przez LLM — używaj intent packów, recipe i allowlist (<code>subactor-run</code> stub NL).</li>
+<li><strong>Nie</strong> rób cichego cutover DNS / Cloudflare bez HITL i runbooka (np. PR9 docs.prod).</li>
+<li><strong>Nie</strong> trzymaj na stałe <code>AUTONOMY_MUTATIONS_ENABLED=1</code> / omijaj grantów — apply wymaga signed grant + lease + env gates (<code>PLESK_SYNC_APPLY</code>).</li>
+<li><strong>Nie</strong> kieruj Koru na Plesk/SFTP/DNS — tylko naprawa kodu po <code>development_defect</code>.</li>
+<li><strong>Nie</strong> ignoruj restartu hr-control po sync <code>step-catalog.json</code>.</li>
+</ol>
+<hr />
+<h2>7. Szybkie komendy (lab)</h2>
+<pre><code class="language-bash">readlink -f ~/.local/bin/subactor
+cd /home/tom/github/subactor
+
+# Tylko intent + plan
+subactor ask &quot;opublikuj logo na logo.subactor.com&quot;
+
+# Dry-run (bez apply)
+subactor ask &quot;opublikuj logo na logo.subactor.com&quot; --execute --yes
+
+# Pełny łańcuch produkcyjny (nieinteraktywnie)
+subactor ask &quot;opublikuj logo na logo.subactor.com&quot; --execute --apply --yes
+
+# Po zmianie step-catalog
+cd platform &amp;&amp; docker compose restart hr-control</code></pre>
+<p>Więcej kontekstu runbook: <a href="../autonomy-cli-runbook.html">autonomy-cli-runbook.md</a>.</p>
+</main>
+</body>
+</html>

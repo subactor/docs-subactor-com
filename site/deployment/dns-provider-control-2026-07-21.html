@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Provider-aware DNS przez connector Plesk — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Provider-aware DNS przez connector Plesk</h1>
+<p>Data diagnozy: 2026-07-21.</p>
+<h2>Wynik</h2>
+<p>Plesk jest originem i panelem hostingu, lecz nie jest autorytatywnym operatorem DNS dla badanych stref. Delegacja potwierdzona przez Cloudflare DNS i Google DNS:</p>
+<table>
+<thead><tr><th>Strefa</th><th>Autorytatywne NS</th><th>Provider</th></tr></thead>
+<tbody>
+<tr><td><code>subactor.com</code></td><td><code>addyson.ns.cloudflare.com</code>, <code>roman.ns.cloudflare.com</code></td><td>Cloudflare</td></tr>
+<tr><td><code>autonomicznosc.pl</code></td><td><code>apollo.ns.cloudflare.com</code>, <code>rita.ns.cloudflare.com</code></td><td>Cloudflare</td></tr>
+<tr><td><code>prototypowanie.pl</code></td><td><code>apollo.ns.cloudflare.com</code>, <code>rita.ns.cloudflare.com</code></td><td>Cloudflare</td></tr>
+</tbody></table>
+<p>Dotychczasowy <code>plesk://host/dns/command/replace</code> poprawnie zmieniał obiekt lokalnej strefy Pleska, ale taka zmiana nie mogła wpłynąć na odpowiedzi wymienionych wyżej nameserverów. Dlatego cutover wykonany w panelu Cloudflare był dla Subactor zmianą poza kontrolą: nie miał planu, apply-grantu ani receiptu providera.</p>
+<h2>Nowy kontrakt URI</h2>
+<p>Connector Plesk <code>v0.12.1</code> pozostaje pojedynczym wejściem operacyjnym:</p>
+<ol>
+<li><code>plesk://host/dns/query/authority</code> ustala strefę i wymaga zgodności dwóch</li>
+</ol>
+<p>niezależnych resolverów co do NS.</p>
+<ol>
+<li><code>plesk://host/dns/command/reconcile</code> zatrzymuje się przy rozbieżności</li>
+</ol>
+<p><code>expected_provider</code>; dla stref Cloudflare używa Cloudflare API, a dla stref Pleska istniejącej ścieżki XML.</p>
+<ol>
+<li>Dry-run zwraca deterministyczny <code>plan_hash</code>, konflikty A/AAAA/CNAME i</li>
+</ol>
+<p><code>provider=cloudflare</code> albo <code>provider=plesk</code>.</p>
+<ol>
+<li>Apply wymaga globalnej bramki mutacji, bramki providera, podpisanego grantu</li>
+</ol>
+<p><code>boundary</code> z dokładnym targetem i jednokrotnego JTI.</p>
+<ol>
+<li><code>plesk://host/dns/query/propagation</code> raportuje osobno consensus wartości oraz</li>
+</ol>
+<p>zakres pozostałych TTL na Cloudflare DNS i Google DNS, a dla A/AAAA porównuje je również z resolverem systemowym runtime.</p>
+<p>Cloudflare apply używa batch API: najpierw usuwa rekordy konfliktowe, następnie tworzy jeden rekord docelowy i ponownie odczytuje stan przez API. Transakcja u providera nie oznacza natychmiastowej propagacji w cache resolverów, dlatego receipt API i wynik propagacji są dwoma różnymi dowodami.</p>
+<h2>Sekret i najmniejsze uprawnienia</h2>
+<p>W vault potrzebny jest wpis <code>cloudflare-dns</code> związany dokładnie z originem <code>https://api.cloudflare.com</code>, zawierający pola:</p>
+<ul>
+<li><code>api_token</code> — token ograniczony do właściwej strefy z Zone DNS Edit oraz Zone</li>
+</ul>
+<p>Read (odczyt strefy służy do sprawdzenia powiązania <code>zone_id</code> przed zmianą);</p>
+<ul>
+<li><code>zone_id</code> — identyfikator strefy <code>subactor.com</code>.</li>
+</ul>
+<p>Tokenu ani <code>zone_id</code> nie wolno umieszczać w tickecie, pliku <code>.env</code>, payloadzie URI, logu ani receipcie. Do czasu uzupełnienia wpisu działają zapytania authority i propagation; provider API dry-run/apply kończy się fail-closed na etapie lease.</p>
+<h2>Stan sprawdzony</h2>
+<p>Cloudflare DNS i Google DNS zwracają dla <code>status.subactor.com</code> A <code>217.160.250.222</code> (odpowiednio TTL <code>86400</code> i <code>21600</code>). Resolver systemowy runtime wciąż zwracał cztery adresy GitHub Pages, dlatego pełny wynik ma <code>consensus=false</code> i <code>propagated=false</code>. To wyjaśnia przejściowy certyfikat <code>*.github.io</code> widziany bez wymuszenia originu; Plesk origin odpowiada już poprawnie po <code>--resolve</code>. Connector nie ukrywa tego stanu jako zakończonej propagacji.</p>
+<p>Pozostałe kroki wdrożeniowe:</p>
+<ol>
+<li>opublikować connector <code>v0.12.1</code> i odświeżyć obraz/registry <code>urirun-node</code>;</li>
+<li>dodać token i <code>zone_id</code> przez jednorazowy formularz vault;</li>
+<li>uruchomić provider-aware dry-run dla <code>status.subactor.com</code> — oczekiwane</li>
+</ol>
+<p><code>changed=false</code>, ponieważ publiczny rekord jest już prawidłowy;</p>
+<ol>
+<li>zachować receipt dry-run jako przejęcie kontroli nad stanem wykonanym wcześniej</li>
+</ol>
+<p>poza connectorami;</p>
+<ol>
+<li>następne zmiany DNS wykonywać wyłącznie przez plan → grant → apply → provider</li>
+</ol>
+<p>verify → propagation verify.</p>
+</main>
+</body>
+</html>

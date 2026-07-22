@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Problem Profile v1 i reakcje na błędy — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Problem Profile v1 i reakcje na błędy</h1>
+<p>Status: wdrożony kontrakt błędu, deduplikacja i klasyfikacja obserwacyjna; automatyczne strategie mutujące pozostają fail-closed Data: 2026-07-21</p>
+<h2>Decyzja</h2>
+<p>Subactor używa RFC 9457 <code>application/problem+json</code> jako publicznego kontraktu błędu. RFC 9457 zastępuje RFC 7807. Problem Profile nie jest kolejnym językiem wykonawczym: opisuje wystąpienie problemu, natomiast istniejące warstwy nadal dzielą odpowiedzialności:</p>
+<ul>
+<li>SODL zapisuje fakt, korelację, fingerprint i historię;</li>
+<li>AQL określa authority do diagnozy, naprawy i odbioru powiadomienia;</li>
+<li>OQL określa operację naprawczą;</li>
+<li>URI Process wybiera jednoznaczny connector/runtime;</li>
+<li>EQL weryfikuje rezultat;</li>
+<li>TestQL sprawdza kontrakt i scenariusze awaryjne;</li>
+<li>Planfile przechowuje pracę, ownera i completion receipt.</li>
+</ul>
+<h2>Kontrakt</h2>
+<p><code>subactor.problem.v1</code> zawiera pola RFC 9457: <code>type</code>, <code>title</code>, <code>status</code>, <code>detail</code> i <code>instance</code>. Rozszerzenia Subactora to między innymi <code>code</code>, <code>legacy_code</code>, <code>category</code>, <code>severity</code>, <code>retryable</code>, <code>security</code>, <code>component</code>, <code>resource</code>, <code>correlation_id</code>, <code>ticket_id</code> oraz deterministyczny <code>fingerprint</code>.</p>
+<p>Pole <code>error</code> pozostaje tymczasowo aliasem bezpiecznego <code>legacy_code</code>, aby istniejące klienty mogły przejść na <code>code</code> bez jednoczesnego breaking change. Dowolne komunikaty wyjątków, stack trace, sekrety i query string nie są publikowane jako <code>detail</code>.</p>
+<p>Wspólny helper automatycznie podnosi ręczne odpowiedzi HTTP 4xx/5xx do Problem Profile i zachowuje ich rozszerzenia. Odpowiedzi, w których stare API używało tekstowego pola <code>status</code> jako statusu lifecycle, publikują tę wartość jako <code>lifecycle_status</code>. Pole <code>status</code> jest zawsze liczbą HTTP wymaganą przez RFC 9457.</p>
+<p>Kod kanoniczny ma format <code>subactor.&lt;domain&gt;.&lt;component&gt;.&lt;condition&gt;</code>. HTTP status opisuje transport i nie służy samodzielnie do wyboru reakcji. Severity używa wartości zgodnych z telemetryką (<code>warn</code>, <code>error</code>, <code>fatal</code>), a incydent bezpieczeństwa jest osobną klasyfikacją, nie poziomem severity.</p>
+<h2>Zdarzenie</h2>
+<p>Każdy nieobsłużony błąd Control jest normalizowany i zapisany jako <code>problem.detected</code>. Jego linia SODL ma <code>kind=problem</code>, <code>mode=observe</code>, <code>status=failed</code> i <code>replayable=false</code>. Ponowienie dotyczy dopiero zatwierdzonego process packa naprawczego, nigdy samego wyjątku.</p>
+<p>Fingerprint jest hashem kanonicznego zestawu:</p>
+<pre><code class="language-text">code + component + environment + resource</code></pre>
+<p>Pozwala grupować powtórzenia bez tworzenia osobnego ticketu i e-maila dla każdego timeoutu.</p>
+<h2>Klasyfikacja reakcji</h2>
+<p>Process pack <code>problem.reaction.observer</code> wykonuje wyłącznie obserwację, deduplikację i klasyfikację <code>problem.detected</code>. Request-scoped observer obejmuje zarówno wyjątki, jak i kontrolowane odpowiedzi HTTP Problem Profile. Stan okien jest trwały w <code>problem-reactions.json</code>, a operator z zakresem <code>audit:read</code> odczytuje go przez:</p>
+<pre><code class="language-text">GET /api/problems/reactions
+GET /api/problems/reactions?fingerprint=&lt;sha256&gt;</code></pre>
+<p>Klasyfikator zwraca jedną z decyzji <code>observe</code>, <code>retry_candidate</code>, <code>escalate_candidate</code> lub <code>containment_candidate</code>. Każda ma <code>automatic_mutation_allowed=false</code>. Dla transient failure dwa pierwsze wystąpienia w pięciominutowym oknie wskazują bounded exponential backoff, a trzecie wskazuje eskalację. To nadal sugestia strategii, nie wykonanie.</p>
+<h2>Następny przyrost</h2>
+<p>Kolejny process pack może połączyć klasy problemów z wykonywalnymi strategiami: retry z idempotency key, circuit breaker, secure credential intake, kompensacja, containment albo eskalacja do właściwej authority. LLM może porządkować zatwierdzone strategie, ale nie może wymyślać kodu, URI, odbiorcy, authority ani operacji.</p>
+<p>Automatyczny apply pozostaje zabroniony bez wcześniejszego ticketu, aktualnego AQL/EQL, dry-run, dokładnego plan hash i jednorazowego grantu.</p>
+</main>
+</body>
+</html>

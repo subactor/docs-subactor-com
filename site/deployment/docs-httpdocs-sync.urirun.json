@@ -1,0 +1,107 @@
+{
+  "id": "docs-httpdocs-sync",
+  "name": "Sync docs \u2192 Plesk httpdocs (docs.subactor.com)",
+  "description": "Dry-run first, then apply via plesk://host/site/command/sync. Optional publish-verify (ADR-004) when verify_public/origin enabled \u2014 success requires fingerprint match. Staging rehearsal: docs-stage.subactor.com (infra optional). Production DNS cutover is PR9 \u2014 do not claim Pages\u2192Plesk cutover here.",
+  "situation": {
+    "source_dir": "/home/tom/github/subactor/docs",
+    "host": "prototypowanie.pl",
+    "domain": "docs.subactor.com",
+    "staging_domain": "docs-stage.subactor.com",
+    "remote_path": "/httpdocs",
+    "staging_remote_path": "/docs-stage.subactor.com"
+  },
+  "uri_processes": [
+    {
+      "id": "docs-httpdocs-methods",
+      "name": "Detect SFTP/FTP deployment transports",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/site/query/methods",
+      "payload": {
+        "host": "prototypowanie.pl"
+      },
+      "depends_on": [],
+      "human_approval": false
+    },
+    {
+      "id": "docs-httpdocs-sync-dry-run",
+      "name": "Dry-run docs \u2192 httpdocs sync plan",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/site/command/sync",
+      "payload": {
+        "source_dir": "/home/tom/github/subactor/docs",
+        "remote_path": "/httpdocs",
+        "host": "prototypowanie.pl",
+        "domain": "docs.subactor.com",
+        "apply": false,
+        "exclude": [
+          "Dockerfile",
+          "docker-compose.yml",
+          ".gitignore",
+          "koru.yaml",
+          "deployment",
+          "deployment/*"
+        ]
+      },
+      "depends_on": [
+        "docs-httpdocs-methods"
+      ],
+      "human_approval": false
+    },
+    {
+      "id": "docs-httpdocs-sync-apply",
+      "name": "Apply docs \u2192 httpdocs sync",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/site/command/sync",
+      "payload": {
+        "source_dir": "/home/tom/github/subactor/docs",
+        "remote_path": "/httpdocs",
+        "host": "prototypowanie.pl",
+        "domain": "docs.subactor.com",
+        "apply": true,
+        "exclude": [
+          "Dockerfile",
+          "docker-compose.yml",
+          ".gitignore",
+          "koru.yaml",
+          "deployment",
+          "deployment/*"
+        ]
+      },
+      "depends_on": [
+        "docs-httpdocs-sync-dry-run"
+      ],
+      "human_approval": false
+    },
+    {
+      "id": "docs-publish-verify",
+      "name": "ADR-004 public/origin fingerprint verify (enable when origin ready)",
+      "actor": "bot:project-operator-bot",
+      "uri": "plesk://host/site/command/publish-verify",
+      "payload": {
+        "hostname": "docs.subactor.com",
+        "release_id": "${release_id}",
+        "artifact_sha256": "${artifact_sha256}",
+        "source_commit": "${source_commit}",
+        "pack_version": "1",
+        "origin_ip": "217.160.250.222",
+        "verify_origin": false,
+        "verify_public": false,
+        "check_dns": false,
+        "check_tls": false,
+        "note": "origin_ip filled for --resolve rehearsal. Keep verify_* false until docs addon serves __subactor_release.json (G1). Do not enable verify_public until PR9 DNS+TLS green."
+      },
+      "depends_on": [
+        "docs-httpdocs-sync-apply"
+      ],
+      "required": false,
+      "on_fail": "rollback",
+      "compensation_step": "release-rollback",
+      "compensation_payload": {
+        "release_root": "/httpdocs",
+        "host": "prototypowanie.pl"
+      },
+      "human_approval": false,
+      "verify": true
+    }
+  ]
+}

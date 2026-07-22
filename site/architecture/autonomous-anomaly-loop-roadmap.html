@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autonomiczna pętla anomalii — stan i roadmapa refaktoryzacji — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Autonomiczna pętla anomalii — stan i roadmapa refaktoryzacji</h1>
+<p><strong>Data:</strong> 2026-07-18 <strong>Kod:</strong> <code>orchestrator/src/anomaly-loop.mjs</code>, <code>openrouter-llm.mjs</code>, <code>anomaly-probes-extended.mjs</code>, <code>bin/anomaly-loop.mjs</code> <strong>Cel:</strong> system, który samodzielnie ogarnia dowolne anomalie i znajduje rozwiązanie w trakcie działania przez pętlę zwrotną opartą na LLM (OpenRouter), także gdy startowy kontekst jest niewystarczający. <strong>Powiązane:</strong> <a href="./eql-koru-session-2026-07-18-status.html"><code>eql-koru-session-2026-07-18-status.md</code></a>, <a href="./subactor-koru-development-bridge.html"><code>subactor-koru-development-bridge.md</code></a>, <a href="../ops/subactor-ask-troubleshooting.html"><code>../ops/subactor-ask-troubleshooting.md</code></a></p>
+<hr />
+<h2>1. Co już działa (zweryfikowane na żywo)</h2>
+<p>Pętla: <code>anomalia → LLM proponuje jedną typowaną akcję → silnik wykonuje pod strażnikami → realny wynik wraca do ledgera → kolejna tura</code>, aż do <code>classified</code> / <code>patched</code> / <code>escalated</code>.</p>
+<p><strong>Akcje:</strong> <code>probe</code> (zbierz dowody), <code>classify</code> (4 kategorie: operational_transient / operational_boundary / needs_human_input / development_defect), <code>patch</code> (naprawa z weryfikacją), <code>escalate</code>.</p>
+<p><strong>Dowody na żywo (prawdziwy OpenRouter, prawdziwe usługi):</strong></p>
+<table>
+<thead><tr><th>Scenariusz</th><th>Wynik</th><th>Iteracje / koszt</th></tr></thead>
+<tbody>
+<tr><td><code>urirun_node_unavailable</code> bez hints</td><td>sam odkrył kontener przez <code>docker_ps</code>, sprawdził health, sklasyfikował <code>operational_transient</code></td><td>3 / $0.0025</td></tr>
+<tr><td><code>invalid_inputs</code> (brak pól foundera)</td><td><code>needs_human_input</code> od razu, bez zbędnych sond</td><td>1 / $0.0007</td></tr>
+<tr><td>Prawdziwy bug składniowy (<code>JSON.parse</code> bez try/catch)</td><td>przejrzał drzewo → przeczytał źródło+test → napisał fix → verify pass → branch <code>anomaly/*</code>, main nietknięty</td><td>4 / $0.0040</td></tr>
+<tr><td><code>urirun_node_unavailable</code> z rozszerzonymi sondami</td><td><code>operational_transient</code>, samo-korekta błędnego argumentu sondy przez feedback</td><td>5 / $0.0064</td></tr>
+</tbody></table>
+<p><strong>Bezpieczeństwo wbudowane w konstrukcję</strong> (nie w prompt): sondy tylko z allowlisty po id, spawn argv bez shella; HTTP loopback-only; <code>env_configured</code> zwraca obecność, nigdy wartość; pliki ograniczone do target-repo minus <code>FORBIDDEN_PATH</code>; patch = pełna treść pliku w izolowanym worktree, przeżywa tylko po <code>verify</code>, ląduje jako branch <code>anomaly/*</code> — nigdy merge/push; twarde budżety (iteracje, próby patcha, nieprawidłowe akcje, koszt USD); audytowalny ledger JSONL.</p>
+<p><strong>Sondy kontekstu</strong> (13 łącznie). Rdzeń: <code>docker_inspect</code>, <code>docker_ps</code>, <code>http_health</code>, <code>env_configured</code>, <code>git_recent</code>, <code>repo_tree</code>, <code>read_file</code>. Rozszerzone: <code>ticket_history</code> (planfile :8765 + historia wykonania), <code>urirun_routes</code>/<code>urirun_health</code> (:18765 — introspekcja tras <code>proc://</code>/<code>plesk://</code>), <code>docker_logs</code>, <code>git_log_file</code>, <code>koru_events</code> (journal napraw JSONL), <code>complexity_snapshot</code> (code2llm HEALTH/CC).</p>
+<p><strong>Kluczowa lekcja z testów:</strong> więcej sond = więcej błądzenia. Rozszerzony zestaw sond spowodował regresję decyzyjności (łatwy przypadek: 3 → wyczerpanie 6 iteracji). Naprawione świadomością budżetu: pętla mówi modelowi ile tur zostało i twardo wymaga akcji terminalnej, gdy są dowody i ≤2 tury.</p>
+<hr />
+<h2>2. Skąd system bierze dane do promptów — audyt źródeł</h2>
+<p>Odpowiedź na pytanie „czy wystarcza informacji z logów, registry itd.&quot;: <strong>tak, dla większości klas anomalii — pod warunkiem że pętla ma sondę do danego źródła.</strong> Zweryfikowany, żywy inwentarz:</p>
+<h3>WYSOKA wartość (strukturalne, działają, tanie w sondowaniu) — już podpięte</h3>
+<ul>
+<li><strong>urirun-node :18765</strong> — <code>GET /routes</code> (521 tras z <code>inputSchema</code>, <code>meta.connector</code>), <code>GET /health</code> (polityka, <code>registryEtag</code>), a w kontenerze <code>connectors.report.json</code> z listą <strong>duplikatów URI</strong> — konkretny sygnał „dlaczego wywołanie <code>plesk://</code> padło&quot;. <em>(sonda: <code>urirun_routes</code>, <code>urirun_health</code>; duplikaty — patrz §3 P2)</em></li>
+<li><strong>planfile :8765</strong> — <code>GET /tickets/{id}</code> z osadzoną <code>history[]</code>, <code>execution</code>, <code>outputs.notes</code>. Źródłowy ticket + jego log wykonania. <em>(sonda: <code>ticket_history</code>)</em></li>
+<li><strong>code2llm</strong> <code>project/analysis.toon.yaml</code> (regenerowane dziś) — <code>HEALTH[20]</code> mapuje funkcje o wysokim CC → pliki. „Które funkcje w padającym komponencie są zamieszane.&quot; <em>(sonda: <code>complexity_snapshot</code>)</em></li>
+<li><strong>config/registry</strong> — <code>subactor-improvement/config/targets.json</code> (komponent→repo→quality gate), <code>policy.json</code> (forbidden paths, branch prefix). <em>(nie podpięte — patrz §3 P1)</em></li>
+</ul>
+<h3>ŚREDNIA wartość (podpięte lub łatwe do dodania)</h3>
+<ul>
+<li><strong>docker logs</strong> — urirun-node emituje strukturalne linie JSON (<code>{&quot;event&quot;:&quot;urirun.node.started&quot;,...}</code>). <em>(sonda: <code>docker_logs</code>)</em></li>
+<li><strong>Koru event JSONL</strong> — <code>.koru/event-store.jsonl</code>, <code>.koru/events/observability.jsonl</code> (<code>exit_code</code>, <code>ticket_id</code>, <code>executor_kind</code>). <em>(sonda: <code>koru_events</code>)</em></li>
+<li><strong>git log -p / blame</strong> na plikach komponentu. <em>(sonda: <code>git_log_file</code>; blame — patrz §3 P2)</em></li>
+<li><strong>Prometheus :9096 + ops-observer :8135/metrics</strong> — <code>subactor_plesk_failures_window</code>, <code>subactor_observability_open_incidents</code>, <code>subactor_security_events_total</code>. Korelacja anomalii z metrykami systemu. <em>(nie podpięte — patrz §3 P1)</em></li>
+</ul>
+<h3>NISKA / pominąć</h3>
+<p>control <code>/status</code> (404, tylko <code>/health</code>), Grafana (dashboardy nie dla LLM), urirun <code>/services</code>/<code>/events</code>/<code>/resolve</code> (puste/authed/absent), testql-watchdog (brak referencji).</p>
+<p><strong>Wniosek:</strong> logi + registry + planfile + code2llm razem pokrywają diagnozę operacyjną, human-input i większość defektów kodu. Luka to <strong>korelacja czasowo-metryczna</strong> (Prometheus) i <strong>mapowanie komponent→repo→gate</strong> (targets.json) — oba w P1 poniżej.</p>
+<hr />
+<h2>2a. Pilot na prawdziwym defekcie (SELFDEV-030) — wynik</h2>
+<p>Uruchomiono pętlę na realnym, zablokowanym tickecie kolejki development: <code>agents/services/intent-pack-adapter.mjs</code> czyta <code>INTENT_PACKS_DIR</code>/<code>INTENT_PACK_DUAL_RUN</code> bezpośrednio z <code>process.env</code> (<code>direct_process_env_forbidden</code>). Target: kanoniczny <code>agents/</code> (nie submodule platform), izolowany worktree, <code>main</code> nietknięty.</p>
+<p><strong>Bieg 1 — eskalacja, przyczyna po stronie verify (nie pętli).</strong> Pętla 3× próbowała patcha, za każdym razem <code>verify_failed</code> z <strong>pustym</strong> stdout/stderr, wyczerpała budżet (10 iter, $0.083). Diagnoza: mój GATE miał <code>&gt;/dev/null 2&gt;&amp;1</code> + brak setupu środowiska. Reprodukcja potwierdziła: w izolowanym worktree w <code>/tmp</code> testy padają, bo rozpoznanie intent-pack registry zależy od ścieżki <code>../../platform/config</code> względem lokalizacji repo — prawdziwe <code>quality_commands</code> ustawiają symlink <code>../platform/config</code>, którego brakowało. <strong>Pętla zachowała się wzorowo: bezpiecznie, bez fałszywego sukcesu, czysty cleanup po 3 porażkach.</strong></p>
+<p><strong>Bieg 2 — sukces end-to-end.</strong> Z wiernym GATE (symlink <code>platform/config</code> + <code>@subactor/runtime</code>, output testów ujawniony): pętla przeczytała źródło i test → 1. patch przeszedł testy (dodał regresję 7→9) ale zostawił resztkowy <code>process.env</code> w linii 19 → <strong>grep w outpucie verify pokazał to pętli</strong> → 2. patch poprawił → verify pass. Wynik: branch <code>anomaly/selfdev-030-agents-env-a2</code>, <code>main</code> nietknięty, 6 iteracji, $0.029.</p>
+<p><strong>Jakość fixu (kontrola ręczna):</strong> poprawny, nie „oszukanie gate'a&quot; — wprowadził obiekt <code>env_contract</code> z getterami (dokładnie „validated environment helper pattern&quot; z anomalii), przekierował oba odczyty, <strong>zachował domyślne shadow</strong> (<code>?? &quot;shadow&quot;</code>), dodał sensowny test regresji (3 tryby, custom/unset, poprawne save/restore <code>process.env</code>). Jedna asercja pusta (<code>compare !== null || true</code>) — drobiazg. Niezależna reweryfikacja: 9/9 testów, zero bezpośrednich <code>process.env</code>.</p>
+<p><strong>Wnioski dla P0:</strong></p>
+<ol>
+<li><strong>Verify musi mieć wierność środowiska.</strong> Izolowany worktree nie ma zależności ani sibling-ścieżek (<code>platform/config</code>, <code>node_modules/@subactor/runtime</code>). Executor pętli <strong>musi</strong> uruchamiać ten sam preambuł co <code>targets.json:quality_commands</code> (setup symlinków + trap cleanup), inaczej verify zawodzi niezależnie od jakości patcha. To najważniejszy blocker P0.</li>
+<li><strong>Verify nie może dusić outputu</strong> — pusty feedback zagładza pętlę. Dodano strażnik <code>verify_uninformative</code> (eskalacja natychmiast zamiast ślepych prób) — commit <code>19e4321</code>.</li>
+<li><strong>Ścieżki w anomalii bywają submodule-relative</strong> (<code>components/agents/...</code> zamiast <code>services/...</code>) — pętla samo-skorygowała przez <code>repo_tree</code>, ale enrichment (P1.4) powinien normalizować.</li>
+<li><strong>Pełen łańcuch feedbacku działa</strong> — pętla naprawiła prawie-dobry patch dzięki temu, że <em>zobaczyła</em> konkretną linię z grepa. To potwierdza rdzeń projektu.</li>
+</ol>
+<h2>3. Roadmapa refaktoryzacji — do pełnej autonomii</h2>
+<p>Priorytety: <strong>P0 = blokuje adopcję produkcyjną</strong>, <strong>P1 = domyka autonomię</strong>, <strong>P2 = odporność/skala</strong>, <strong>P3 = dopracowanie</strong>.</p>
+<h3>P0 — integracja z żywym systemem (dziś pętla to samodzielne CLI)</h3>
+<ol>
+<li><strong>Wierność środowiska verify</strong> <em>(nowy P0, z pilota — najwyższy priorytet).</em> Executor pętli musi uruchamiać komendę verify z tym samym preambułem środowiskowym co <code>targets.json:quality_commands</code> (symlinki <code>platform/config</code>, <code>node_modules/@subactor/runtime</code>, trap cleanup). Bez tego verify w izolowanym worktree zawodzi niezależnie od poprawności patcha (dowiedzione: bieg 1 pilota). Najprościej: <code>verifyCommands[].argv = [&quot;bash&quot;,&quot;-lc&quot;, &lt;quality_command z targets.json&gt;]</code> pobierany z konfiguracji targetu, nie ręcznie. Verify NIE jest kontrolowane przez LLM, więc <code>bash -lc</code> tu nie narusza zasady no-shell (dotyczy sond).</li>
+<li><strong>Executor kolejki <code>development</code>.</strong> Zastąp jednostrzałowy <code>AutonomousRepairExecutor</code> (<code>subactor-improvement/src/repair-executor.mjs</code>, dziś <code>agent_did_not_commit_repair</code>) adapterem pętli anomalii. Pętla diagnozuje przed patchowaniem — dokładnie to, czego zabrakło SELFDEV-005/006. Pilot potwierdził, że przy poprawnym verify pętla naprawia realny defekt end-to-end (SELFDEV-030, 6 iter, $0.029), którego stary executor nie ruszył.</li>
+<li><strong>Wpięcie w <code>record_improvement_failure</code></strong> (<code>platform/bin/subactor</code>). Zamiast od razu tworzyć ticket repair, uruchom pętlę; twórz ticket dopiero gdy pętla zwróci <code>development_defect</code> lub <code>escalated</code>. Kategorie <code>operational_transient</code>/<code>needs_human_input</code> nie generują wtedy ticketów-śmieci (usuwa klasę problemu z <code>invalid_inputs</code>/<code>urirun_node_unavailable</code>).</li>
+<li><strong>Automatyczne wzbogacanie zdarzenia o kontekst uruchomieniowy.</strong> Dziś <code>docker_container</code>/<code>health_url</code> podaję ręcznie w <code>hints</code>. Trzeba mapować <code>component</code> → kontener/URL/repo z <code>docker-compose.yml</code> + <code>targets.json</code>, żeby pętla startowała z pełnym kontekstem bez ręcznej ingerencji. Pilot pokazał też, że ścieżki w anomalii bywają submodule-relative i wymagają normalizacji do repo kanonicznego.</li>
+</ol>
+<h3>P1 — domknięcie autonomii kontekstu</h3>
+<ol>
+<li><strong>Sonda <code>component_map</code></strong> czytająca <code>targets.json</code> + <code>docker-compose.yml</code>: <code>component</code> → <code>{repo_root, container, health_url, quality_gate}</code>. Zamienia zgadywanie nazw kontenerów (dziś model próbuje <code>docker_ps</code> z filtrem) na deterministyczne rozwiązanie. To bezpośrednio adresuje „jak system może uzupełniać dane&quot;.</li>
+<li><strong>Sonda <code>metrics_query</code></strong> (Prometheus :9096 <code>/api/v1/query</code>, ops-observer :8135). Korelacja: „czy <code>subactor_plesk_failures_window</code> skoczył w oknie anomalii?&quot;. Domyka klasę anomalii operacyjnych, których nie widać z samych logów.</li>
+<li><strong>Pamięć międzybiegowa (<code>resolution_memory</code>).</strong> Zapisuj <code>{fingerprint → (kategoria, skuteczna ścieżka sond, rozwiązanie)}</code> w JSONL. Kolejna anomalia z tym samym fingerprintem startuje od podpowiedzi „poprzednio to było X, sprawdź Y najpierw&quot; — redukuje iteracje i koszt, buduje uczenie się systemu.</li>
+<li><strong>Eskalacja z konkretem, nie tylko <code>reason</code>.</strong> Gdy pętla eskaluje, niech generuje strukturalny ticket HITL z zebranym ledgerem jako dowodem — człowiek dostaje diagnozę, nie surową anomalię.</li>
+</ol>
+<h3>P2 — odporność i skala</h3>
+<ol>
+<li><strong>Panel weryfikatorów zamiast pojedynczego przebiegu</strong> dla patchy wysokiego ryzyka: N niezależnych ocen „czy ten fix jest poprawny i minimalny?&quot; przed promocją brancha (wzorzec adversarial-verify). Redukuje fałszywe naprawy.</li>
+<li><strong>Wielomodelowy fallback OpenRouter</strong> — gdy model podstawowy zwraca <code>openrouter_invalid_json</code> lub timeout, degraduj do tańszego/innego modelu zamiast eskalować. Dziś 2 błędy LLM = eskalacja.</li>
+<li><strong>Wykrywanie duplikatów URI</strong> jako pierwszorzędna sonda (<code>urirun_duplicates</code> czytająca <code>connectors.report.json</code>) — dla anomalii <code>connector_not_implemented</code>/<code>uri_process_not_allowed</code> to często root cause.</li>
+<li><strong>Równoległe sondy w jednej turze.</strong> Dziś jedna akcja/turę. Pozwól na wiązkę niezależnych sond (np. <code>docker_inspect</code> + <code>ticket_history</code> + <code>git_log_file</code> naraz), by ciąć iteracje na złożonych anomaliach.</li>
+<li><strong>Adaptacyjny budżet</strong> — prosty fingerprint dostaje 3 iteracje, złożony (nieznany kod, patch) do 10. Dziś stały limit.</li>
+</ol>
+<h3>P3 — dopracowanie</h3>
+<ol>
+<li><strong>Klasyfikator AQL (<code>development-defect-classifier.pl.aql</code>) jako szybka ścieżka</strong> przed LLM: znane kody klasyfikują się deterministycznie za darmo; LLM tylko dla nieznanych/niejednoznacznych. Łączy prototyp AQL (commit <code>1f3f564</code>) z pętlą.</li>
+<li><strong>Redakcja sekretów w ledgerze</strong> — druga warstwa poza <code>FORBIDDEN_PATH</code>: filtruj wartości wyglądające jak tokeny/klucze z <code>stdout</code> sond, zanim trafią do promptu.</li>
+<li><strong>Metryki samej pętli</strong> — eksportuj <code>anomaly_loop_iterations</code>, <code>_cost_usd</code>, <code>_outcome</code> do Prometheus, żeby obserwować autonomię (meta-monitoring).</li>
+</ol>
+<hr />
+<h2>4. Znane ograniczenia / ryzyka (stan na dziś)</h2>
+<ul>
+<li><strong>Pętla nie jest jeszcze wpięta w żywy bridge</strong> — to samodzielne CLI (<code>bin/anomaly-loop.mjs</code>). Cała wartość produkcyjna zależy od P0.</li>
+<li><strong>Patch tylko pełną treścią pliku</strong> — świadomie (eliminuje malformed-diff), ale dla dużych plików model musi odtworzyć całość; limit 200 KB/plik, 1–3 pliki. Duże refaktory poza zasięgiem — i słusznie, to mają robić ludzie.</li>
+<li><strong>Brak realnego testu ścieżki <code>patch</code> na żywym repo subactor</strong> — testowany na fixture'ach git i jednym prawdziwym bugu składniowym w scratchpadzie. Przed P0 wymaga pilota na prawdziwym, izolowanym defekcie z kolejki.</li>
+<li><strong>Koszt jest funkcją liczby iteracji</strong> — świadomość budżetu pomaga, ale złożona anomalia z patchem to realnie $0.01–0.05/bieg. Przy dużym wolumenie potrzebny cache/pamięć (P1.6) i szybka ścieżka AQL (P3.13).</li>
+<li><strong>Model może błędnie sklasyfikować</strong> — dlatego kategorie <code>operational_*</code>/<code>needs_human</code> tylko <code>ignore</code> (nic nie psują), a <code>patch</code> zawsze przez <code>verify</code> + branch (człowiek zatwierdza merge). Najgorszy przypadek to niepotrzebna eskalacja, nie zła mutacja.</li>
+</ul>
+</main>
+</body>
+</html>

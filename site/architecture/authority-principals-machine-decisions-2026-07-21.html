@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Authority principals i decyzje machine-to-machine — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Authority principals i decyzje machine-to-machine</h1>
+<h2>Werdykt</h2>
+<p><code>Founder</code> jest kanałem i pierwszym reprezentantem organizacji, ale nie jest technicznym źródłem uprawnienia. Źródłem uprawnienia jest authority związane z konkretnym ticketem i kontraktem AQL. Principal może reprezentować człowieka, maszynę, usługę, bota albo zewnętrznego providera.</p>
+<p>Obsługiwane identyfikatory:</p>
+<ul>
+<li><code>human:&lt;id&gt;</code>;</li>
+<li><code>machine:&lt;id&gt;</code>;</li>
+<li><code>service:&lt;id&gt;</code>;</li>
+<li><code>bot:&lt;id&gt;</code>;</li>
+<li><code>provider:&lt;id&gt;</code>.</li>
+</ul>
+<p>Sam typ principal, posiadanie tokenu lub rola Foundera nie wystarcza do wydania decyzji. Authority jest przyznawane wyłącznie przez co najmniej jeden jawny mechanizm ticketu:</p>
+<ol>
+<li><code>execution.assigned_to</code> wskazuje principal;</li>
+<li>etykieta <code>authority:&lt;principal&gt;</code>;</li>
+<li>etykieta <code>approver:&lt;principal&gt;</code>;</li>
+<li>etykieta <code>principal:&lt;principal&gt;</code>;</li>
+<li>AQL ticketu wskazuje tego aktora i capability <code>decision.respond</code>,</li>
+</ol>
+<p><code>ticket.approve</code>, <code>plan.approve</code> albo <code>apply_grant.issue</code>.</p>
+<p>Nie istnieje globalny wyjątek dla <code>human:founder</code>. Ticket, który ma zatwierdzić Founder, musi jawnie zawierać np. <code>authority:human:founder</code>.</p>
+<h2>Endpoint M2M</h2>
+<p>Zdalny policy engine odpowiada przez:</p>
+<pre><code class="language-http">POST /api/authority/decisions/respond
+Authorization: Bearer &lt;token powiązany z principal&gt;
+Content-Type: application/json
+
+{&quot;ticket_id&quot;:&quot;PLF-123&quot;,&quot;decision&quot;:&quot;approve&quot;}</code></pre>
+<p>Dozwolone decyzje to <code>approve</code>, <code>defer</code> i <code>reject</code>. Token musi mieć scope <code>plans:approve</code>, ale scope jest tylko pierwszą bramką. Control odczytuje principal z uwierzytelnionej tożsamości i niezależnie sprawdza jego authority w docelowym tickecie. Nie przyjmuje principal w body, dzięki czemu wywołująca maszyna nie może podszyć się pod innego decydenta.</p>
+<p>Każda decyzja zapisuje principal, metodę uwierzytelnienia i ticket w audycie. Brak przypisania zwraca <code>403 authority_principal_not_assigned</code> bez zmiany stanu.</p>
+<h2>E-mail i GUI</h2>
+<p>E-mail pozostaje jednym z transportów authority. Parser skorelowanej odpowiedzi akceptuje teraz także <code>principal:machine:*</code>, <code>principal:service:*</code>, <code>bot</code> i <code>provider</code>, ale nadal wymaga uwierzytelnienia nadawcy, ticketu procesu oraz authority w docelowym zadaniu. Brak jawnego principal nie jest już zamieniany na <code>human:founder</code>.</p>
+<p>Panel Foundera i jednorazowy link są zachowane jako kompatybilny kanał dla człowieka. Kolejnym etapem refaktoryzacji powinno być przemianowanie transportu na <code>authority action</code>, bez zmiany istniejących URL-i do czasu migracji klientów.</p>
+<h2>Przykład ticketu kontrolowanego przez maszynę</h2>
+<pre><code class="language-json">{
+  &quot;labels&quot;: [&quot;authority:machine:policy-engine-prod&quot;],
+  &quot;execution&quot;: {
+    &quot;state&quot;: &quot;waiting_input&quot;,
+    &quot;assigned_to&quot;: &quot;machine:policy-engine-prod&quot;
+  },
+  &quot;inputs&quot;: {
+    &quot;process_manifest&quot;: {
+      &quot;definitions&quot;: {
+        &quot;aql&quot;: [
+          {
+            &quot;actor&quot;: &quot;machine:policy-engine-prod&quot;,
+            &quot;allow&quot;: [&quot;decision.respond&quot;],
+            &quot;deny&quot;: [&quot;scope.expand&quot;, &quot;principal.override&quot;]
+          }
+        ]
+      }
+    }
+  }
+}</code></pre>
+<p>Maszyna po drugiej stronie powinna posiadać osobny, rotowany token związany z jej principal. Nie należy współdzielić bootstrapowego tokenu administratora ani przenosić credentiali w treści ticketu.</p>
+<p>Tożsamość <code>machine</code>, <code>service</code> lub <code>provider</code> jest rejestrowana z kontraktem <code>aql:contract/v1</code>. Kompilator dopuszcza te typy zarówno jako principal, jak i delegatora, ale delegacja nadal wymaga aktywnego kontraktu nadrzędnego, capability <code>autonomy.contract.delegate</code> oraz niewykraczania poza jego zakres. Typ tożsamości sam w sobie nie stanowi authority.</p>
+</main>
+</body>
+</html>

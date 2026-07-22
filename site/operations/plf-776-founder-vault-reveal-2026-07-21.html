@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLF-776 — jednorazowy dostęp Foundera do vault — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>PLF-776 — jednorazowy dostęp Foundera do vault</h1>
+<p>Data wdrożenia: 2026-07-21. Zleceniodawca: <code>authority:founder</code>.</p>
+<h2>Rezultat</h2>
+<p>Dodano ticket-bound proces pozwalający Founderowi odebrać pojedyncze pole sejfu przez krótko ważny, jednorazowy URL. Automaty i tokeny administracyjne nie mogą odczytać URL z odpowiedzi API: mogą wyłącznie zlecić dostarczenie go przez zatwierdzony zewnętrzny kanał e-mail. Sam odczyt wymaga aktywnej sesji Foundera.</p>
+<h2>Zabezpieczenia</h2>
+<ul>
+<li>AQL/OQL/URI wiążą ticket z dokładnym wpisem, origin i polem vault;</li>
+<li>operacja wymaga jawnego <code>human_approval: true</code>;</li>
+<li>w rejestrze przechowywany jest wyłącznie solony hash tokenu;</li>
+<li>token znajduje się w fragmencie URL i jest usuwany z paska adresu;</li>
+<li>ujawnienie jest atomowo jednorazowe, z TTL 1–15 minut;</li>
+<li>sekret nie trafia do e-maila, URL, ticketu, audytu ani receiptu;</li>
+<li>odpowiedź i strona mają politykę <code>no-store</code>, brak referrera i restrykcyjny CSP;</li>
+<li>strona usuwa wartość z widoku po 60 sekundach;</li>
+<li>nieudana wysyłka unieważnia utworzony token.</li>
+</ul>
+<h2>Implementacja i weryfikacja</h2>
+<p>Warstwa znajduje się w <code>core/services/control/src/founder-vault-access.mjs</code> i <code>core/services/control/src/routes/founder-vault.mjs</code>. Operator korzysta z <code>platform/scripts/create-founder-vault-reveal-link.mjs</code>. Instrukcja i przykład manifestu są w <code>platform/docs/FOUNDER_VAULT_REVEAL.md</code>.</p>
+<p>Testy tras i linków obejmują zgodność ticketu, wymóg sesji, dostarczenie przez zewnętrzny SMTP, brak URL w odpowiedzi dla bearera, jednokrotność i brak sekretu w dowodach. Pełny zestaw <code>core</code>: 303/303 testy zaliczone; testy celowane: 15/15 zaliczonych. Test live utworzył <code>PLF-780</code>, dostarczył link transportem zewnętrznym i pozostawił w rejestrze wyłącznie hash tokenu.</p>
+</main>
+</body>
+</html>

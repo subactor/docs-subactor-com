@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Business Operating System — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../index.html">subactor/docs</a></nav>
+<h1>Project Business Operating System</h1>
+<p>Celem modułu jest zamiana wiedzy o projekcie w kontrolowany system prowadzenia biznesu. Import nie wykonuje kampanii ani nie wysyła ofert. Najpierw tworzy wiedzę, blueprint, testy i plan proposed.</p>
+<h2>Pełna mapa procesów</h2>
+<p>Blueprint zawiera siedemnaście obszarów:</p>
+<ol>
+<li>pozycjonowanie i oferta;</li>
+<li>reklama i pozyskiwanie ruchu;</li>
+<li>treści i edukacja rynku;</li>
+<li>pozyskanie i kwalifikacja leadów;</li>
+<li>sprzedaż i domykanie;</li>
+<li>monetyzacja i Revenue Operations;</li>
+<li>wdrożenie i dostarczenie wartości;</li>
+<li>wsparcie klienta;</li>
+<li>utrzymanie, rozwój i polecenia;</li>
+<li>produkt, roadmapa i eksperymenty;</li>
+<li>finanse, fakturowanie i należności;</li>
+<li>umowy, prawo i zgodność;</li>
+<li>ludzie, kompetencje i capacity;</li>
+<li>partnerstwa i zakupy;</li>
+<li>analityka, eksperymenty i decyzje;</li>
+<li>bezpieczeństwo, prywatność i ciągłość;</li>
+<li>TestQL, dowody i odpowiedzialność.</li>
+</ol>
+<p>Plan może dodatkowo utworzyć proces badania braków informacyjnych.</p>
+<h2>Odpowiedzialność</h2>
+<p>Każdy proces ma:</p>
+<ul>
+<li><code>owner_role</code>;</li>
+<li>cel;</li>
+<li>KPI;</li>
+<li>status;</li>
+<li>powiązanie z projektem;</li>
+<li>źródło utworzenia;</li>
+<li>historię zmian.</li>
+</ul>
+<p>AI nie jest właścicielem rezultatu. LLM proponuje strukturę i treść roboczą. Outcome owner i approver są ludźmi lub formalnymi rolami organizacji.</p>
+<h2>Cykl od importu do wykonania</h2>
+<pre><code class="language-text">1. Utwórz projekt
+2. Zaimportuj WWW/repozytorium/katalog
+3. Przejrzyj Markdown i blueprint
+4. Sprawdź TestQL importu
+5. Utwórz plan AQL/OQL
+6. Przeczytaj dokładny OQL
+7. Zatwierdź plan tokenem approvera
+8. Wykonaj adaptery
+9. Uruchom postflight TestQL
+10. Przeglądaj procesy, zadania, kampanie i wyniki w workspace</code></pre>
+<h2>AQL</h2>
+<p><code>project-business-bootstrap.pl.aql</code> wybiera wariant:</p>
+<ul>
+<li>przegląd bezpieczeństwa przy możliwych sekretach;</li>
+<li>dalsze badanie przy słabych dowodach;</li>
+<li>pełny system biznesowy dla projektu rynkowego;</li>
+<li>system produktu technicznego dla repozytorium;</li>
+<li>standardowy bootstrap.</li>
+</ul>
+<p>AQL jest deterministyczne: identyczne wejście daje identyczną decyzję.</p>
+<h2>OQL</h2>
+<p>OQL pokazuje wszystkie operacje przed wykonaniem. Dla pełnego projektu może utworzyć:</p>
+<ul>
+<li>procesy biznesowe;</li>
+<li>kampanię startową;</li>
+<li>ofertę do review;</li>
+<li>zadania lejka sprzedaży;</li>
+<li>zadanie bazy wiedzy wsparcia;</li>
+<li>zadanie pomiaru przychodu;</li>
+<li>outcome projektu;</li>
+<li>suite TestQL;</li>
+<li>postflight TestQL.</li>
+</ul>
+<p>Plan ma hash OQL. Przy zatwierdzaniu zapisuje się hash, a przed wykonaniem system sprawdza, czy plan nie został zmieniony.</p>
+<h2>TestQL</h2>
+<p>Importer uruchamia TestQL dla:</p>
+<ul>
+<li>liczby poprawnie pobranych źródeł;</li>
+<li>rozmiaru Markdownu;</li>
+<li>proweniencji;</li>
+<li>liczby procesów;</li>
+<li>liczby zadań;</li>
+<li>wykrytych sekretów.</li>
+</ul>
+<p>Po wykonaniu OQL Bridge uruchamia postflight TestQL dla workspace projektu:</p>
+<ul>
+<li>co najmniej 17 procesów;</li>
+<li>obecny proces reklamy;</li>
+<li>obecny proces sprzedaży;</li>
+<li>obecny Revenue Operations;</li>
+<li>obecne wsparcie;</li>
+<li>backlog zadań;</li>
+<li>zdefiniowany outcome.</li>
+</ul>
+<p>Niepowodzenie TestQL zatrzymuje plan jako <code>failed</code>, a nie <code>completed</code>.</p>
+<h2>Automatyzacja marketingu i sprzedaży</h2>
+<p>System przygotowuje strukturę, ale działania zewnętrzne muszą być osobnymi, zatwierdzonymi planami. Przykładowe kolejne modele AQL:</p>
+<pre><code class="language-text">campaign-planning.pl.aql
+lead-qualification.pl.aql
+offer-approval.pl.aql
+sales-followup.pl.aql
+customer-onboarding.pl.aql
+support-triage.pl.aql
+renewal-and-upsell.pl.aql</code></pre>
+<p>Wysłanie reklamy, oferty, wiadomości klientowi, zmiana ceny lub zobowiązanie umowne powinny wymagać odpowiedniego poziomu approval.</p>
+</main>
+</body>
+</html>

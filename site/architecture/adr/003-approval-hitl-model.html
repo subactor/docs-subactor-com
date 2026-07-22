@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADR-003: Model zatwierdzania i Human-in-the-loop — Subactor Docs</title>
+  <style>
+    :root { --bg:#0f1419; --fg:#e7ecf1; --muted:#9aa7b5; --accent:#3d9cf0; --line:#243041; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans","Segoe UI",sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3d, var(--bg));
+      color: var(--fg); line-height:1.6; min-height:100vh; }
+    main { max-width: 52rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    h1,h2,h3,h4 { letter-spacing:-0.01em; line-height:1.25; }
+    h1 { font-size:1.9rem; } h2 { font-size:1.4rem; margin-top:2.2rem; }
+    h3 { font-size:1.15rem; margin-top:1.8rem; }
+    code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em;
+      background:#1a2331; border:1px solid var(--line); border-radius:4px; padding:0.1em 0.35em; }
+    pre { background:#0b1017; border:1px solid var(--line); border-radius:8px;
+      padding:1rem; overflow-x:auto; }
+    pre code { background:none; border:none; padding:0; }
+    table { border-collapse:collapse; width:100%; margin:1rem 0; display:block; overflow-x:auto; }
+    th,td { border:1px solid var(--line); padding:0.45rem 0.7rem; text-align:left;
+      font-size:0.92rem; }
+    th { background:#161f2c; }
+    blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:0.2rem 1rem;
+      color: var(--muted); }
+    hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+    .docnav { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.8rem;
+      margin-bottom:2rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="docnav"><a href="../../index.html">subactor/docs</a></nav>
+<h1>ADR-003: Model zatwierdzania i Human-in-the-loop</h1>
+<ul>
+<li><strong>Status:</strong> Accepted  </li>
+<li><strong>Data:</strong> 2026-07-18  </li>
+<li><strong>Kontekst:</strong> <a href="../autonomy-recommended-solution.html"><code>../autonomy-recommended-solution.md</code></a> §2.3, §6  </li>
+<li><strong>Pytanie statusowe:</strong> „Kto zatwierdza apply?” / „HITL when?” / „Dry-run zawsze przed apply?” — <strong>rozstrzygnięte</strong>  </li>
+<li><strong>Implementacja:</strong> roadmap <strong>PR5a</strong> (manifest) → <strong>PR5b</strong> (grant) → <strong>PR5c</strong> (replay); nie shipować grant-required bez tego ADR.</li>
+</ul>
+<h2>Decyzja</h2>
+<p><strong>Nie</strong> zatwierdzać ręcznie każdego deployu. Podział klas operacji:</p>
+<table>
+<thead><tr><th>Klasa</th><th>Przykład</th><th>Tryb</th></tr></thead>
+<tbody>
+<tr><td>Read-only</td><td>DNS query, methods, health</td><td>automatyczny</td></tr>
+<tr><td>Reversible mutate</td><td>publikacja kolejnego release</td><td>automatyczny <strong>po obowiązkowym dry-run</strong> + grant</td></tr>
+<tr><td>Boundary change</td><td>nowa domena, DNS, utworzenie credential</td><td><strong>jednorazowy HITL</strong></td></tr>
+<tr><td>Governance change</td><td>nowy intent pack, AQL allow, polityka</td><td><strong>obowiązkowy review człowieka</strong></td></tr>
+</tbody></table>
+<p>Po bootstrapie domeny/credentials/polityki publikacja docs = <strong>zero-touch</strong> (w środowisku z zielonym preflightem).</p>
+<h3>Bramki apply (fail-closed)</h3>
+<ol>
+<li><strong>Master kill switch:</strong> <code>AUTONOMY_MUTATIONS_ENABLED</code> — jawne <code>0</code> blokuje; <code>1</code> otwiera master.</li>
+<li><strong>Domain kill switch:</strong> <code>PLESK_SYNC_APPLY=1</code> dla syncu Plesk (legacy ops gate).</li>
+<li><strong>Signed apply grant</strong> związany z bindingami poniżej.</li>
+<li><strong>Immutable manifest</strong> z dry-run — apply weryfikuje <code>plan_hash</code>, nie przelicza swobodnie listy plików.</li>
+</ol>
+<p>Founder bypass (<code>SUBACTOR_ADMIN_TOKEN</code>) <strong>nie</strong> zastępuje grantu w modelu produkcyjnym.</p>
+<hr />
+<h2>Specyfikacja apply grant (krytyczna)</h2>
+<h3>Signer / issuer / audience</h3>
+<table>
+<thead><tr><th>Pole</th><th>Wartość</th></tr></thead>
+<tbody>
+<tr><td><strong>Signer / issuer</strong></td><td>Control service (<code>hr-control</code>) — endpoint <code>POST /api/apply-grants</code></td></tr>
+<tr><td><strong>Wymagany scope</strong></td><td><code>plans:approve</code> (founder/admin / approver)</td></tr>
+<tr><td><strong>Audience (verifier)</strong></td><td>Bridge planner + <code>urirun-connector-plesk</code> (oraz przyszłe mutate connectors)</td></tr>
+<tr><td><strong>Algorytm</strong></td><td><code>HMAC-SHA256</code> (<code>alg: &quot;HS256&quot;</code>), signature <strong>base64url</strong> (bez paddingu <code>=</code>)</td></tr>
+<tr><td><strong>Canonical payload</strong></td><td>JSON object z <strong>ustałą kolejnością kluczy</strong> (nie alfabetyczną): <code>run_id</code>, <code>actor</code>, <code>intent_pack</code>, <code>plan_hash</code>, <code>artifact_sha256</code>, <code>target</code>, <code>expires_at</code>, <code>risk_class</code> — wartości string, <code>JSON.stringify</code> bez spacji (<code>separators (',', ':')</code> w Pythonie)</td></tr>
+</tbody></table>
+<h3>Klucz</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td><strong>Preferowany</strong></td><td><code>APPLY_GRANT_HMAC_SECRET</code> (vault lub env noda; nigdy w ticketach/logach)</td></tr>
+<tr><td><strong>Fallback lab</strong></td><td><code>TOKEN_PEPPER</code> (tylko gdy primary unset; ten sam sekret na control + verifier)</td></tr>
+<tr><td><strong>Brak sekretu</strong></td><td><strong>fail-closed:</strong> <code>apply_grant_secret_missing</code> — brak mutacji</td></tr>
+<tr><td><strong>Rotacja</strong></td><td>Wprowadzić nowy sekret jako <code>APPLY_GRANT_HMAC_SECRET_NEXT</code>, dual-verify (current \</td><td>\</td><td>next) przez ≤ TTL max, potem drop old; audit <code>apply_grant.key_rotated</code></td></tr>
+<tr><td><strong>Verifier unavailable</strong></td><td>Brak sekretu lub błąd crypto → <strong>deny</strong> (nie allow-open)</td></tr>
+</tbody></table>
+<h3>Claims (binding)</h3>
+<p>Wymagane: <code>run_id</code>, <code>actor</code>, <code>intent_pack</code>, <code>plan_hash</code>, <code>artifact_sha256</code>, <code>target</code>, <code>expires_at</code>, <code>risk_class</code>.</p>
+<p>Opcjonalne w ADR (pełny replay = <strong>PR5c</strong>): <code>jti</code>, <code>iat</code>. <strong>PR5b wydaje <code>jti</code> w tokenie</strong>; store użytych <code>jti</code> pozostaje PR5c.</p>
+<p><code>risk_class</code> ∈ <code>read_only</code> \| <code>reversible</code> \| <code>boundary</code> \| <code>governance</code>. Mutate sync = zwykle <code>reversible</code>.</p>
+<h3>TTL / clock skew</h3>
+<table>
+<thead><tr><th></th><th></th></tr></thead>
+<tbody>
+<tr><td><strong>Default TTL</strong></td><td>15 minut</td></tr>
+<tr><td><strong>Max TTL</strong></td><td>60 minut (control odrzuca dłuższe)</td></tr>
+<tr><td><strong>Clock skew</strong></td><td>verifier: <code>expires_at</code> ważny jeśli <code>now &lt;= expires_at + 60s</code> (skew); reject jeśli <code>expires_at &lt; now - 60s</code> już przy issue</td></tr>
+<tr><td><strong>Expired</strong></td><td><code>apply_grant_expired</code></td></tr>
+</tbody></table>
+<h3>Replay (PR5c) — <strong>done</strong></h3>
+<ul>
+<li>Każdy grant ma <code>jti</code> (uuid/base64url).</li>
+<li>Verifier (mutate path) utrzymuje short-TTL store użytych <code>jti</code> (memory lub plik <code>APPLY_GRANT_JTI_STORE</code>) ≥ grant <code>expires_at</code> + skew.</li>
+<li>Ponowne użycie → <code>apply_grant_replay</code> (zero drugiej mutacji).</li>
+<li>Bridge planner: verify bez consume; <code>urirun-connector-plesk</code>: consume po <code>plan_hash</code>, przed upload.</li>
+</ul>
+<h3>Immutable manifest (PR5a)</h3>
+<ul>
+<li>Dry-run zwraca <code>manifest</code> + <code>plan_hash</code>.</li>
+<li><code>plan_hash</code> = SHA-256 hex kanonicznego JSON nad <code>{source_sha256, files[{path,sha256}], deletes, target}</code> — <strong>bez</strong> <code>release_id</code> (metadane).</li>
+<li>Apply z podanym <code>plan_hash</code> ≠ recomputed → <code>plan_hash_mismatch</code>.</li>
+</ul>
+<h3>Deny codes (kontrakt)</h3>
+<p><code>plesk_sync_apply_required</code> \| <code>autonomy_mutations_disabled</code> \| <code>apply_grant_required</code> \| <code>apply_grant_secret_missing</code> \| <code>apply_grant_signature_invalid</code> \| <code>apply_grant_expired</code> \| <code>apply_grant_plan_hash_mismatch</code> \| <code>apply_grant_target_mismatch</code> \| <code>apply_grant_artifact_mismatch</code> \| <code>apply_grant_replay</code> \| <code>plan_hash_mismatch</code></p>
+<p>Sekrety <strong>nigdy</strong> w grant body, ticketach, recipe, NL logs.</p>
+<h2>Konsekwencje</h2>
+<ul>
+<li>Bot bez grantu i bez otwartego kill switcha nigdy nie mutuje.</li>
+<li>Ship kodu: najpierw PR5a (manifest), potem PR5b (verify grant), potem PR5c (jti replay).</li>
+</ul>
+</main>
+</body>
+</html>

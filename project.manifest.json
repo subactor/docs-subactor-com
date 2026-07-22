@@ -1,0 +1,24 @@
+{
+  "schema": "subactor.projects/v1",
+  "projects": [{
+    "id": "docs-subactor-com",
+    "company": "Subactor",
+    "domain": "docs.subactor.com",
+    "subscription": "subactor.com",
+    "dns_zone": "subactor.com",
+    "dns_provider": "cloudflare",
+    "dns_management_plane": "plesk",
+    "dns_sync_extension": "cloudflaredns",
+    "origin_ip": "217.160.250.222",
+    "source": "site",
+    "entrypoint": "index.html",
+    "publication": {
+      "mode": "static_httpdocs",
+      "remote_path": "/docs.subactor.com",
+      "publish_uri": "plesk://host/site/command/sync",
+      "verify_uri": "plesk://host/site/command/publish-verify",
+      "verification": {"mode": "content_hash", "path": "/"}
+    },
+    "gates": ["subscription_can_create_domain", "dns_ready", "tls_ready"]
+  }]
+}
