@@ -9,6 +9,8 @@
     "dns_provider": "cloudflare",
     "dns_management_plane": "plesk",
     "dns_sync_extension": "cloudflaredns",
+    "public_ingress_mode": "plesk_public_origin",
+    "tunnel_mode": "none",
     "origin_ip": "217.160.250.222",
     "plesk_site_id": 185,
     "source": "site",
