@@ -82,10 +82,24 @@ function modelLabel(plan) {
 }
 
 function formatResultLine(r) {
-  const files = r?.files_planned ?? r?.urirun?.files_planned;
-  const mode = r?.mode || r?.urirun?.mode || r?.status;
-  const bits = [r?.id || r?.op, mode, files != null ? `${files} files` : null].filter(Boolean);
-  return bits.join(" · ");
+  return _resultBits(r).filter(Boolean).join(" · ");
+}
+
+function _resultBits(result) {
+  return [_resultIdentity(result), _resultMode(result), _resultFileCount(result)];
+}
+
+function _resultIdentity(result) {
+  return result?.id || result?.op;
+}
+
+function _resultMode(result) {
+  return result?.mode || result?.urirun?.mode || result?.status;
+}
+
+function _resultFileCount(result) {
+  const files = result?.files_planned ?? result?.urirun?.files_planned;
+  return files != null ? `${files} files` : null;
 }
 
 export function resultSummary(plan) {
