@@ -20,6 +20,8 @@
       "remote_path": "/docs.subactor.com",
       "publish_uri": "plesk://host/site/command/sync",
       "verify_uri": "plesk://host/site/command/publish-verify",
+      "sftp_host": "prototypowanie.pl",
+      "credential_origin": "https://prototypowanie.pl",
       "verification": {"mode": "content_hash", "path": "/"}
     },
     "gates": ["subscription_can_create_domain", "dns_ready", "tls_ready"]
