@@ -1,0 +1,42 @@
+name: intent-conformance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intent-conformance-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Check out the exact reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Fetch exact PR base
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
+      - name: Check project intent
+        id: intent
+        uses: subactor/platform/actions/intent-conformance@e5360b070ff3601fbc82d2f4a1118477d44f721d
+        with:
+          base-ref: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          semantic: auto
+      - name: Upload bounded intent report
+        if: always() && steps.intent.outputs.report != ''
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: intent-conformance
+          path: ${{ steps.intent.outputs.report }}
